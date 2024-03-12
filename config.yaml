@@ -5,6 +5,7 @@ local:
 # 远端对象存储配置
 remote:
   endpoint: cos.ap-guangzhou.myqcloud.com # 例如：cos.ap-guangzhou.myqcloud.com
+  use_ssl: true
   secret_id: ${MY_SECRET_ID} # 可设置在环境变量中
   secret_key: ${MY_SECRET_KEY} # 可设置在环境变量中
   bucket:

@@ -24,6 +24,7 @@ type SyncConfig struct {
 	} `yaml:"local"`
 	Remote struct {
 		Endpoint  string `yaml:"endpoint"`
+		UseSSL    bool   `yaml:"use_ssl"`
 		SecretId  string `yaml:"secret_id"`
 		SecretKey string `yaml:"secret_key"`
 		Bucket    string `yaml:"bucket"`

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/config"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 func main() {
 
+	ctx := context.Background()
 	c, err := config.GetConfig()
 	if err != nil {
 		log.Fatalf("Load config err: %s\n", err.Error())
@@ -24,7 +26,14 @@ func main() {
 		log.Fatalf("ReadDir err: %s\n", err.Error())
 	}
 
-	// 检查对象存储
+	// 检查对象存储桶是否存在
+	s, err := NewStorage(c)
+	if err != nil {
+		log.Fatalf("NewStorage err: %s\n", err.Error())
+	}
+	if err = s.BucketExists(ctx); err != nil {
+		log.Fatalf("BucketExist err: %s\n", err.Error())
+	}
 
 	// 监听本地变更事件
 
