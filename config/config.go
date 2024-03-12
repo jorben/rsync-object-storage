@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"github.com/jorben/rsync-object-storage/helper"
 	conf "github.com/ldigit/config"
 	"os"
 	"path/filepath"
@@ -41,6 +43,40 @@ type SyncConfig struct {
 	} `yaml:"sync"`
 }
 
+// GetConfig 获取解析好的配置
+func GetConfig() (*SyncConfig, error) {
+	raw := conf.GetGlobalConfig()
+	if raw == nil {
+		return nil, errors.New("configuration is empty, please check the config file path")
+	}
+	cfg := raw.(*SyncConfig)
+	return cfg, nil
+}
+
+// GetString 格式化配置成字符串
+func (c *SyncConfig) GetString() string {
+	s := fmt.Sprintln("****************** ROS *******************")
+	s += fmt.Sprintln("Local: -----------------------------------")
+	s += fmt.Sprintf("  Path:\t\t| %s\n", c.Local.Path)
+	s += fmt.Sprintln("Remote: ----------------------------------")
+	s += fmt.Sprintf("  Endpoint:\t| %s\n", c.Remote.Endpoint)
+	s += fmt.Sprintf("  SecretId:\t| %s\n", helper.HideSecret(c.Remote.SecretId, 12))
+	s += fmt.Sprintf("  SecretKey:\t| %s\n", helper.HideSecret(c.Remote.SecretKey, 12))
+	s += fmt.Sprintf("  Bucket:\t| %s\n", c.Remote.Bucket)
+	s += fmt.Sprintf("  Region:\t| %s\n", c.Remote.Region)
+	s += fmt.Sprintf("  Path:\t\t| %s\n", c.Remote.Path)
+	s += fmt.Sprintln("Sync: -----------------------------------")
+	s += fmt.Sprintln("  Real-time:")
+	s += fmt.Sprintf("    Enable:\t| %t\n", c.Sync.RealTime.Enable)
+	s += fmt.Sprintln("  Check-job:")
+	s += fmt.Sprintf("    Enable:\t| %t\n", c.Sync.CheckJob.Enable)
+	s += fmt.Sprintf("    Interval:\t| %d hour\n", c.Sync.CheckJob.Interval)
+	s += fmt.Sprintf("    Start-at:\t| %s\n", c.Sync.CheckJob.StartAt)
+	s += fmt.Sprintf("  Ignore:\t| %v\n", c.Sync.Ignore)
+	s += fmt.Sprint("******************************************")
+	return s
+}
+
 func loadConfig(path string) *SyncConfig {
 	cfg := &SyncConfig{}
 	if err := conf.LoadAndDecode(path, cfg); err != nil {
@@ -64,14 +100,4 @@ func loadConfig(path string) *SyncConfig {
 	}
 
 	return cfg
-}
-
-// GetConfig 获取配置
-func GetConfig() (*SyncConfig, error) {
-	raw := conf.GetGlobalConfig()
-	if raw == nil {
-		return nil, errors.New("configuration is empty, please check the config file path")
-	}
-	cfg := raw.(*SyncConfig)
-	return cfg, nil
 }
