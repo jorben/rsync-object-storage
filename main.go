@@ -35,8 +35,20 @@ func main() {
 		log.Fatalf("BucketExist err: %s\n", err.Error())
 	}
 
-	// 监听本地变更事件
+	// 创建Watcher实例
+	w, err := NewWatcher()
+	if err != nil {
+		log.Fatalf("NewWatcher err: %s\n", err.Error())
+	}
 
-	// 定期对账
+	// 异步处理本地文件变更事件
+	go w.EventHandler()
+
+	// 异步处理定期对账任务
+
+	// 监听本地路径
+	if err = w.Run(c.Local.Path); err != nil {
+		log.Fatalf("Watch err: %s\n", err.Error())
+	}
 
 }
