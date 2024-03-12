@@ -1,0 +1,77 @@
+package config
+
+import (
+	"errors"
+	conf "github.com/ldigit/config"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+const configFile = "./config.yaml"
+
+func init() {
+	cfg := loadConfig(configFile)
+	conf.SetGlobalConfig(cfg)
+}
+
+// SyncConfig 同步配置
+type SyncConfig struct {
+	Local struct {
+		Path string `yaml:"path"`
+	} `yaml:"local"`
+	Remote struct {
+		Endpoint  string `yaml:"endpoint"`
+		SecretId  string `yaml:"secret_id"`
+		SecretKey string `yaml:"secret_key"`
+		Bucket    string `yaml:"bucket"`
+		Region    string `yaml:"region"`
+		Path      string `yaml:"path"`
+	} `yaml:"remote"`
+	Sync struct {
+		RealTime struct {
+			Enable bool `yaml:"enable"`
+		} `yaml:"real_time"`
+		CheckJob struct {
+			Enable   bool   `yaml:"enable"`
+			Interval int    `yaml:"interval"`
+			StartAt  string `yaml:"start_at"`
+		} `yaml:"check_job"`
+		Ignore []string `yaml:"ignore,omitempty"`
+	} `yaml:"sync"`
+}
+
+func loadConfig(path string) *SyncConfig {
+	cfg := &SyncConfig{}
+	if err := conf.LoadAndDecode(path, cfg); err != nil {
+		return nil
+	}
+
+	// 处理local.path为相对路径的情况，替换为绝对路径
+	if len(cfg.Local.Path) > 0 && "./" == cfg.Local.Path[0:2] {
+		cfg.Local.Path, _ = filepath.Abs(cfg.Local.Path)
+	}
+
+	// 处理local.path中带有~的情况，替换为绝对路径
+	if len(cfg.Local.Path) > 0 && "~" == cfg.Local.Path[0:1] {
+		homeDir, _ := os.UserHomeDir()
+		cfg.Local.Path = strings.Replace(cfg.Local.Path, "~", homeDir, 1)
+	}
+
+	// 处理remote.path中的前导/
+	if len(cfg.Remote.Path) > 0 && "/" == cfg.Remote.Path[0:1] {
+		cfg.Remote.Path = strings.TrimLeft(cfg.Remote.Path, "/")
+	}
+
+	return cfg
+}
+
+// GetConfig 获取配置
+func GetConfig() (*SyncConfig, error) {
+	raw := conf.GetGlobalConfig()
+	if raw == nil {
+		return nil, errors.New("configuration is empty, please check the config file path")
+	}
+	cfg := raw.(*SyncConfig)
+	return cfg, nil
+}

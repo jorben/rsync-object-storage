@@ -17,5 +17,8 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# IDE file
+.idea
+
 # Go workspace file
 go.work

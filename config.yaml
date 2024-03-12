@@ -1,0 +1,31 @@
+# 本地路径配置
+local:
+  path:
+
+# 远端对象存储配置
+remote:
+  endpoint: cos.ap-guangzhou.myqcloud.com # 例如：cos.ap-guangzhou.myqcloud.com
+  secret_id: ${MY_SECRET_ID} # 可设置在环境变量中
+  secret_key: ${MY_SECRET_KEY} # 可设置在环境变量中
+  bucket:
+  region:
+  path:
+
+# 同步配置
+sync:
+  # 是否启用实时同步（监听本地文件变更进行同步，仅同步服务运行期间发生变更的文件，可结合check_job实现全量同步）
+  real_time:
+    enable: true
+  # 是否启用定期文件对账（扫描对比本地与远端文件差异进行同步）
+  check_job:
+    enable: true
+    interval: 72 # 文件对账频率间隔，单位小时
+    start_at: 4:00:00 # 文件对账启动时间（建议选在凌晨），将结合频率间隔配置定期执行
+  # 忽略不同步的文件和文件夹
+  ignore:
+    - .*.swp
+    - .DS_Store
+    - .ds_store
+    - .svn
+    - .git
+    - Thumbs.db
