@@ -48,11 +48,15 @@ func (w *Watcher) Watch(path string) error {
 	// 遍历指定路径下的所有子目录（fsnotify不会递归监听）
 	err := filepath.WalkDir(path, func(name string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			log.Printf("WalkDir err: %s, skipping %s\n", err.Error(), name)
+			return filepath.SkipDir
 		}
 		// 是文件夹且不在忽略列表中
 		if d.IsDir() && !helper.IsIgnore(name, w.ignore) {
-			return w.Add(name)
+			if err := w.Add(name); err != nil {
+				log.Printf("Watch add err: %s, skipping %s\n", err.Error(), name)
+				return filepath.SkipDir
+			}
 		}
 		return nil
 	})
