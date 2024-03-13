@@ -40,14 +40,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("NewWatcher err: %s\n", err.Error())
 	}
+	defer w.Client.Close()
 
-	// 异步处理本地文件变更事件
-	go w.EventHandler()
+	// 异步处理变更事件
+	go func() {
+		for {
+			select {
+			case _ = <-w.ModifyCh:
+			case _ = <-w.DeleteCh:
+			}
+		}
+	}()
 
 	// 异步处理定期对账任务
 
 	// 监听本地路径
-	if err = w.Run(c.Local.Path); err != nil {
+	if err = w.Watch(c.Local.Path); err != nil {
 		log.Fatalf("Watch err: %s\n", err.Error())
 	}
 
