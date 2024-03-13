@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/config"
 	"log"
@@ -12,8 +13,10 @@ import (
 
 func main() {
 
-	ctx := context.Background()
-	c, err := config.GetConfig()
+	configPath := flag.String("c", "./config.yaml", "Path to the configuration file")
+	flag.Parse()
+
+	c, err := config.GetConfig(*configPath)
 	if err != nil {
 		log.Fatalf("Load config err: %s\n", err.Error())
 	}
@@ -31,16 +34,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("NewStorage err: %s\n", err.Error())
 	}
+	ctx := context.Background()
 	if err = s.BucketExists(ctx); err != nil {
 		log.Fatalf("BucketExist err: %s\n", err.Error())
 	}
 
 	// 创建Watcher实例
-	w, err := NewWatcher()
+	w, err := NewWatcher(c.Sync.Ignore)
 	if err != nil {
 		log.Fatalf("NewWatcher err: %s\n", err.Error())
 	}
-	defer w.Client.Close()
+	defer w.Close()
 
 	// 异步处理变更事件
 	go func() {

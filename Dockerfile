@@ -11,4 +11,4 @@ FROM --platform=$TARGETPLATFORM alpine
 WORKDIR /app
 COPY --from=build /app/ros ./ros
 
-CMD ["/app/ros"]
+CMD ["/app/ros", "-c", "/app/config.yaml"]

@@ -10,13 +10,6 @@ import (
 	"strings"
 )
 
-const configFile = "./config.yaml"
-
-func init() {
-	cfg := loadConfig(configFile)
-	conf.SetGlobalConfig(cfg)
-}
-
 // SyncConfig 同步配置
 type SyncConfig struct {
 	Local struct {
@@ -45,12 +38,15 @@ type SyncConfig struct {
 }
 
 // GetConfig 获取解析好的配置
-func GetConfig() (*SyncConfig, error) {
+func GetConfig(path string) (*SyncConfig, error) {
 	raw := conf.GetGlobalConfig()
-	if raw == nil {
+	if raw != nil {
+		return raw.(*SyncConfig), nil
+	}
+	cfg := loadConfig(path)
+	if cfg == nil {
 		return nil, errors.New("configuration is empty, please check the config file path")
 	}
-	cfg := raw.(*SyncConfig)
 	return cfg, nil
 }
 
