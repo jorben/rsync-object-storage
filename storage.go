@@ -43,3 +43,12 @@ func (s *Storage) BucketExists(ctx context.Context) error {
 	}
 	return nil
 }
+
+// FPutObject 上传文件
+func (s *Storage) FPutObject(ctx context.Context, localPath string, objectName string) error {
+	objectName = fmt.Sprintf("%s/%s", s.Prefix, objectName)
+	if _, err := s.Client.FPutObject(ctx, s.Bucket, objectName, localPath, minio.PutObjectOptions{}); err != nil {
+		return err
+	}
+	return nil
+}

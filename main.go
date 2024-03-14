@@ -52,14 +52,9 @@ func main() {
 	defer w.Close()
 
 	// 异步处理变更事件
-	go func() {
-		for {
-			select {
-			case _ = <-w.ModifyCh:
-			case _ = <-w.DeleteCh:
-			}
-		}
-	}()
+	t := NewTransfer(c.Local.Path, s)
+	go t.ModifyObject(ctx, w.ModifyCh)
+	go t.DeleteObject(ctx, w.DeleteCh)
 
 	// 异步处理定期对账任务
 

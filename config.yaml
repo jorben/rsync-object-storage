@@ -25,6 +25,7 @@ sync:
   # 忽略不同步的文件和文件夹
   ignore:
     - .*.swp
+    - "*~"
     - .DS_Store
     - .ds_store
     - .svn
