@@ -55,6 +55,8 @@ func (w *Watcher) Close() {
 	if err := w.client.Close(); err != nil {
 		log.Errorf("Watcher close err: %s", err.Error())
 	}
+	close(w.ModifyCh)
+	close(w.DeleteCh)
 }
 
 // Watch 启动监听本地路径

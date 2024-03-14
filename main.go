@@ -52,7 +52,7 @@ func main() {
 	defer w.Close()
 
 	// 异步处理变更事件
-	t := NewTransfer(c.Local.Path, s)
+	t := NewTransfer(c.Local.Path, c.Remote.Path, s)
 	go t.ModifyObject(ctx, w.ModifyCh)
 	go t.DeleteObject(ctx, w.DeleteCh)
 

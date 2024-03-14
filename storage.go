@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/config"
+	"github.com/jorben/rsync-object-storage/helper"
+	"github.com/jorben/rsync-object-storage/log"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"os"
 )
 
 type Storage struct {
@@ -46,9 +49,46 @@ func (s *Storage) BucketExists(ctx context.Context) error {
 
 // FPutObject 上传文件
 func (s *Storage) FPutObject(ctx context.Context, localPath string, objectName string) error {
-	objectName = fmt.Sprintf("%s/%s", s.Prefix, objectName)
+	if isDir, _ := helper.IsDir(localPath); isDir {
+		// 如果是文件夹则创建objectName/.keep文件，现有接口不支持直接创建空文件夹
+		objectName += "/.keep"
+		// 构造一个空文件用于上传
+		localPath = "./.empty"
+		if isExist, _ := helper.IsExist(localPath); !isExist {
+			// 创建空文件
+			emptyFile, err := os.Create(localPath)
+			if err != nil {
+				return errors.New(fmt.Sprintf("Create .keep file err: %s", err.Error()))
+			}
+			_ = emptyFile.Close()
+		}
+	} else {
+		// 文件 则需要对远端内容一致性比较，内容一致则不重复上传
+		if isSame := s.IsSame(ctx, localPath, objectName); isSame {
+			log.Debugf("Consistent, skipping %s", localPath)
+			return nil
+		}
+	}
+
 	if _, err := s.Client.FPutObject(ctx, s.Bucket, objectName, localPath, minio.PutObjectOptions{}); err != nil {
 		return err
 	}
 	return nil
+}
+
+// IsSame 判断本地文件和远端文件内容是否一致
+func (s *Storage) IsSame(ctx context.Context, localPath string, objectName string) bool {
+	objectInfo, err := s.Client.StatObject(ctx, s.Bucket, objectName, minio.StatObjectOptions{})
+	if err != nil {
+		// 多半是Key不存在
+		log.Debugf("StatObject err: %s, path: %s", err.Error(), objectName)
+		return false
+	}
+	// 计算本地文件的md5
+	localMd5, _ := helper.Md5(localPath)
+	log.Debugf("Compare file: %s, Md5: %s, Remote ETag: %s", localPath, localMd5, objectInfo.ETag)
+	if localMd5 == objectInfo.ETag {
+		return true
+	}
+	return false
 }
