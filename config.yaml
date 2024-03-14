@@ -30,3 +30,18 @@ sync:
     - .svn
     - .git
     - Thumbs.db
+    - .idea
+log:
+  - writer: console
+    formatter: console
+    level: DEBUG
+  - writer: file
+    formatter: json
+    level: DEBUG
+    format_config:
+      time_fmt: "2006-01-02 15:04:05.000"
+    write_config:
+      log_path: "./run.log"
+      max_size: 10
+      max_age: 30
+      compress: true

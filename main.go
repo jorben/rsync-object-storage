@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/config"
-	"log"
+	"github.com/jorben/rsync-object-storage/log"
 	"os"
 )
 
@@ -18,31 +18,36 @@ func main() {
 
 	c, err := config.GetConfig(*configPath)
 	if err != nil {
-		log.Fatalf("Load config err: %s\n", err.Error())
+		fmt.Printf("Load config err: %s\n", err.Error())
+		return
 	}
+
+	// 初始化日志
+	log.InitLogger(c.Log)
+	defer log.GetLogger().Sync()
 
 	// 输出配置供检查
 	fmt.Println(c.GetString())
 
 	// 检查本地路径可读性
 	if _, err = os.ReadDir(c.Local.Path); err != nil {
-		log.Fatalf("ReadDir err: %s\n", err.Error())
+		log.Fatalf("ReadDir err: %s", err.Error())
 	}
 
 	// 检查对象存储桶是否存在
 	s, err := NewStorage(c)
 	if err != nil {
-		log.Fatalf("NewStorage err: %s\n", err.Error())
+		log.Fatalf("NewStorage err: %s", err.Error())
 	}
 	ctx := context.Background()
 	if err = s.BucketExists(ctx); err != nil {
-		log.Fatalf("BucketExist err: %s\n", err.Error())
+		log.Fatalf("BucketExist err: %s", err.Error())
 	}
 
 	// 创建Watcher实例
 	w, err := NewWatcher(c.Sync.Ignore)
 	if err != nil {
-		log.Fatalf("NewWatcher err: %s\n", err.Error())
+		log.Fatalf("NewWatcher err: %s", err.Error())
 	}
 	defer w.Close()
 
@@ -60,7 +65,7 @@ func main() {
 
 	// 监听本地路径
 	if err = w.Watch(c.Local.Path); err != nil {
-		log.Fatalf("Watch err: %s\n", err.Error())
+		log.Fatalf("Watch err: %s", err.Error())
 	}
 
 }

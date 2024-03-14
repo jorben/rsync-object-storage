@@ -20,5 +20,8 @@
 # IDE file
 .idea
 
+# Log file
+*.log
+
 # Go workspace file
 go.work

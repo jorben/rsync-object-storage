@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/helper"
+	"github.com/jorben/rsync-object-storage/log"
 	conf "github.com/ldigit/config"
 	"os"
 	"path/filepath"
@@ -35,6 +36,7 @@ type SyncConfig struct {
 		} `yaml:"check_job"`
 		Ignore []string `yaml:"ignore,omitempty"`
 	} `yaml:"sync"`
+	Log []log.OutputConfig `yaml:"log"`
 }
 
 // GetConfig 获取解析好的配置
