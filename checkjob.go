@@ -67,7 +67,7 @@ func (c *CheckJob) Run(ctx context.Context) {
 		go c.Walk(ctx)
 
 		// 创建周期定时器
-		ticker := time.NewTicker(time.Duration(c.Interval) * time.Minute)
+		ticker := time.NewTicker(time.Duration(c.Interval) * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
 			// 执行周期校对任务

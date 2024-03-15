@@ -67,7 +67,7 @@ func (w *Watcher) Watch() error {
 
 	if !w.Enable {
 		log.Debug("The real-time sync is disabled")
-		// Hold住进程，以便单用check job的场景
+		// Hold进程，以便单用check job的场景
 		<-make(chan struct{})
 	}
 

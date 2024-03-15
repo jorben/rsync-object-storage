@@ -42,7 +42,7 @@ func (t *Transfer) Run(ctx context.Context) {
 			err := filepath.WalkDir(path, func(subPath string, d fs.DirEntry, err error) error {
 				if err := t.Storage.FPutObject(ctx, subPath); err != nil {
 					log.Errorf("FPutObject err: %s, file: %s", err.Error(), subPath)
-					return filepath.SkipDir
+					return nil
 				}
 				log.Infof("Sync success, path: %s", subPath)
 				return nil
@@ -61,7 +61,7 @@ func (t *Transfer) Run(ctx context.Context) {
 			if err := t.Storage.RemoveObjects(ctx, path); err != nil {
 				continue
 			}
-			log.Debugf("Remove success, path: %s", path)
+			log.Infof("Remove success, path: %s", path)
 		}
 
 	}

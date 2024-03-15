@@ -26,10 +26,13 @@ func NewStorage(c *config.SyncConfig) (*Storage, error) {
 		Creds:  credentials.NewStaticV4(c.Remote.SecretId, c.Remote.SecretKey, ""),
 		Region: c.Remote.Region,
 		Secure: c.Remote.UseSSL,
+		// 可以跳过证书校验，可用于自签发证书的场景
+		//Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return &Storage{
 		Minio:        cli,
 		Bucket:       c.Remote.Bucket,
