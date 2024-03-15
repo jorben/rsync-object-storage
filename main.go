@@ -29,6 +29,12 @@ func main() {
 	// 输出配置供检查
 	fmt.Println(c.GetString())
 
+	ctx := context.Background()
+	PutChan := make(chan string)
+	DeleteChan := make(chan string)
+	defer close(PutChan)
+	defer close(DeleteChan)
+
 	// 检查本地路径可读性
 	if _, err = os.ReadDir(c.Local.Path); err != nil {
 		log.Fatalf("ReadDir err: %s", err.Error())
@@ -39,29 +45,30 @@ func main() {
 	if err != nil {
 		log.Fatalf("NewStorage err: %s", err.Error())
 	}
-	ctx := context.Background()
 	if err = s.BucketExists(ctx); err != nil {
 		log.Fatalf("BucketExist err: %s", err.Error())
 	}
 
 	// 创建Watcher实例
-	w, err := NewWatcher(c.Sync.Ignore)
+	w, err := NewWatcher(c, PutChan, DeleteChan)
 	if err != nil {
 		log.Fatalf("NewWatcher err: %s", err.Error())
 	}
 	defer w.Close()
 
+	// 创建CheckJob实例
+	j := NewCheckJob(c, PutChan, s)
+	// 异步处理定期对账任务
+	go j.Run(ctx)
+
 	// 异步处理变更事件
-	t := NewTransfer(c.Local.Path, c.Remote.Path, s)
+	t := NewTransfer(c, PutChan, DeleteChan, s)
 	for i := 0; i < 8; i++ {
-		go t.ModifyObject(ctx, w.ModifyCh)
-		go t.DeleteObject(ctx, w.DeleteCh)
+		go t.Run(ctx)
 	}
 
-	// 异步处理定期对账任务
-
 	// 监听本地路径
-	if err = w.Watch(c.Local.Path); err != nil {
+	if err = w.Watch(); err != nil {
 		log.Fatalf("Watch err: %s", err.Error())
 	}
 
