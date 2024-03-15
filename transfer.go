@@ -38,7 +38,7 @@ func (t *Transfer) ModifyObject(ctx context.Context, list <-chan string) {
 				log.Errorf("FPutObject err: %s, file: %s", err.Error(), subPath)
 				return filepath.SkipDir
 			}
-			log.Debugf("FPutObject success, file: %s", subPath)
+			log.Debugf("Sync success, path: %s", subPath)
 			return nil
 		})
 		if err != nil {
@@ -48,8 +48,19 @@ func (t *Transfer) ModifyObject(ctx context.Context, list <-chan string) {
 }
 
 func (t *Transfer) DeleteObject(ctx context.Context, list <-chan string) {
-	for _ = range list {
+	for name := range list {
+		// 要判断路径是否存在（有一些文件修改保存策略是先删除再创建，避免串到了Create的后面，导致误删）
+		if isExist, _ := helper.IsExist(name); isExist {
+			log.Debugf("Path is still exist %s", name)
+			continue
+		}
 
+		objectName := t.GetRemotePath(name)
+		// 如果是目录，则需要遍历删除
+		if err := t.storageClient.RemoveObjects(ctx, objectName); err != nil {
+			continue
+		}
+		log.Debugf("Remove success, path: %s", objectName)
 	}
 }
 

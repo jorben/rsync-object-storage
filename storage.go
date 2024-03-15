@@ -47,7 +47,49 @@ func (s *Storage) BucketExists(ctx context.Context) error {
 	return nil
 }
 
-// FPutObject 上传文件
+// RemoveObject 删除对象
+func (s *Storage) RemoveObject(ctx context.Context, objectName string) error {
+	_, err := s.Client.StatObject(ctx, s.Bucket, objectName, minio.StatObjectOptions{})
+	if err != nil {
+		// 多半是Key不存在
+		log.Debugf("StatObject err: %s, path: %s", err.Error(), objectName)
+		return nil
+	}
+
+	return s.Client.RemoveObject(ctx, s.Bucket, objectName, minio.RemoveObjectOptions{})
+
+}
+
+// RemoveObjects 批量删除对象
+func (s *Storage) RemoveObjects(ctx context.Context, objectPath string) (someError error) {
+	objectsCh := make(chan minio.ObjectInfo)
+	go func() {
+		defer close(objectsCh)
+		for object := range s.Client.ListObjects(ctx, s.Bucket,
+			minio.ListObjectsOptions{Prefix: objectPath, Recursive: true}) {
+			if object.Err != nil {
+				log.Errorf("ListObjects err: %s", object.Err.Error())
+				continue
+			}
+			if object.Key == objectPath ||
+				(len(object.Key) > len(objectPath) && objectPath+"/" == object.Key[0:len(objectPath)+1]) {
+				// 避免误删了前缀相同但非子文件，比如 abc abcd.txt
+				objectsCh <- object
+				log.Debugf("Will be delete %s", object.Key)
+			}
+		}
+	}()
+
+	someError = nil
+	opts := minio.RemoveObjectsOptions{GovernanceBypass: true}
+	for err := range s.Client.RemoveObjects(ctx, s.Bucket, objectsCh, opts) {
+		someError = err.Err
+		log.Errorf("RemoveObjects err: %s, path: %s", err.Err.Error(), err.ObjectName)
+	}
+	return someError
+}
+
+// FPutObject 上传对象
 func (s *Storage) FPutObject(ctx context.Context, localPath string, objectName string) error {
 	if isDir, _ := helper.IsDir(localPath); isDir {
 		// 如果是文件夹则创建objectName/.keep文件，现有接口不支持直接创建空文件夹
@@ -81,7 +123,7 @@ func (s *Storage) IsSame(ctx context.Context, localPath string, objectName strin
 	objectInfo, err := s.Client.StatObject(ctx, s.Bucket, objectName, minio.StatObjectOptions{})
 	if err != nil {
 		// 多半是Key不存在
-		log.Debugf("StatObject err: %s, path: %s", err.Error(), objectName)
+		log.Debugf("StatObject %s, path: %s", err.Error(), objectName)
 		return false
 	}
 	// 计算本地文件的md5

@@ -53,8 +53,10 @@ func main() {
 
 	// 异步处理变更事件
 	t := NewTransfer(c.Local.Path, c.Remote.Path, s)
-	go t.ModifyObject(ctx, w.ModifyCh)
-	go t.DeleteObject(ctx, w.DeleteCh)
+	for i := 0; i < 8; i++ {
+		go t.ModifyObject(ctx, w.ModifyCh)
+		go t.DeleteObject(ctx, w.DeleteCh)
+	}
 
 	// 异步处理定期对账任务
 
