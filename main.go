@@ -45,6 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("NewStorage err: %s", err.Error())
 	}
+
 	if err = s.BucketExists(ctx); err != nil {
 		log.Fatalf("BucketExist err: %s", err.Error())
 	}

@@ -41,6 +41,19 @@ func NewStorage(c *config.SyncConfig) (*Storage, error) {
 	}, nil
 }
 
+// ListBucket 列出Bucket列表
+func (s *Storage) ListBucket(ctx context.Context) ([]string, error) {
+	var bucketList []string
+	bucketInfoList, err := s.Minio.ListBuckets(ctx)
+	if err != nil {
+		return bucketList, err
+	}
+	for _, bucket := range bucketInfoList {
+		bucketList = append(bucketList, bucket.Name)
+	}
+	return bucketList, nil
+}
+
 // BucketExists 判断Bucket是否存在
 func (s *Storage) BucketExists(ctx context.Context) error {
 	exist, err := s.Minio.BucketExists(ctx, s.Bucket)

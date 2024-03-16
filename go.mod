@@ -2,6 +2,8 @@ module github.com/jorben/rsync-object-storage
 
 go 1.20
 
+replace github.com/minio/minio-go/v7 => github.com/jorben/minio-go/v7 v7.0.0-20240315175604-7872ece73c72
+
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/ldigit/config v1.0.0
