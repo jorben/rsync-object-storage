@@ -5,8 +5,11 @@ import (
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/helper"
 	"github.com/jorben/rsync-object-storage/log"
+	"github.com/jorben/rsync-object-storage/ttlset"
 	"io/fs"
 	"path/filepath"
+	"sync"
+	"time"
 )
 
 type Watcher struct {
@@ -75,6 +78,13 @@ func (w *Watcher) Watch() error {
 		return err
 	}
 
+	// 热点数据集合
+	hotKeySet := make(map[string]string)
+	var mu sync.Mutex
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case event, ok := <-w.Notify.Events:
@@ -95,7 +105,16 @@ func (w *Watcher) Watch() error {
 
 			// 文件发生变更
 			if event.Has(fsnotify.Write) {
-				w.PutChan <- event.Name
+				// 判断文件是否热点文件，热点文件进行延迟更新，以节省流量和操作次数
+				if ttlset.Exists(event.Name) {
+					// 丢入set中，合并多个同名文件的事件（热点降温）
+					log.Debugf("Hot path, will be delayed %s", event.Name)
+					mu.Lock()
+					hotKeySet[event.Name] = ""
+					mu.Unlock()
+				} else {
+					w.PutChan <- event.Name
+				}
 			}
 
 			// 如果删除或改在监听列表中，则需要移除监听
@@ -115,6 +134,20 @@ func (w *Watcher) Watch() error {
 				w.DeleteChan <- event.Name
 			}
 
+		case <-ticker.C:
+			// 处理降温后的热点数据key
+			var deleteKeys []string
+			for key := range hotKeySet {
+				log.Debugf("After delayed path %s", key)
+				w.PutChan <- key
+				deleteKeys = append(deleteKeys, key)
+			}
+			mu.Lock()
+			for _, key := range deleteKeys {
+				delete(hotKeySet, key)
+			}
+			mu.Unlock()
+			deleteKeys = deleteKeys[:0]
 		case err, ok := <-w.Notify.Errors:
 			if !ok {
 				continue

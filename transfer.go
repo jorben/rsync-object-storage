@@ -5,8 +5,10 @@ import (
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/helper"
 	"github.com/jorben/rsync-object-storage/log"
+	"github.com/jorben/rsync-object-storage/ttlset"
 	"io/fs"
 	"path/filepath"
+	"time"
 )
 
 type Transfer struct {
@@ -45,6 +47,8 @@ func (t *Transfer) Run(ctx context.Context) {
 					return nil
 				}
 				log.Infof("Sync success, path: %s", subPath)
+				// 将执行成功的记录加入到TTLSet，供热点文件发现
+				ttlset.Add(subPath, 5*time.Minute)
 				return nil
 			})
 			if err != nil {

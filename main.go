@@ -30,8 +30,8 @@ func main() {
 	fmt.Println(c.GetString())
 
 	ctx := context.Background()
-	PutChan := make(chan string)
-	DeleteChan := make(chan string)
+	PutChan := make(chan string, 64)
+	DeleteChan := make(chan string, 16)
 	defer close(PutChan)
 	defer close(DeleteChan)
 
