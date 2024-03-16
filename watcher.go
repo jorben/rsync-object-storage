@@ -108,7 +108,7 @@ func (w *Watcher) Watch() error {
 				// 判断文件是否热点文件，热点文件进行延迟更新，以节省流量和操作次数
 				if ttlset.Exists(event.Name) {
 					// 丢入set中，合并多个同名文件的事件（热点降温）
-					log.Debugf("Hot path, will be delayed %s", event.Name)
+					log.Debugf("Hotspot path, will be delay sync %s", event.Name)
 					mu.Lock()
 					hotKeySet[event.Name] = ""
 					mu.Unlock()
@@ -138,7 +138,7 @@ func (w *Watcher) Watch() error {
 			// 处理降温后的热点数据key
 			var deleteKeys []string
 			for key := range hotKeySet {
-				log.Debugf("After delayed path %s", key)
+				log.Debugf("Get delayed path %s", key)
 				w.PutChan <- key
 				deleteKeys = append(deleteKeys, key)
 			}
