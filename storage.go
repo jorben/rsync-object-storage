@@ -144,7 +144,7 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 		tmp = "./." + randomString
 		fileSize, err := helper.Copy(localPath, tmp)
 		if err == nil {
-			log.Debugf("Copy success, size %s", helper.ByteCountSI(fileSize))
+			log.Debugf("Copy is ready, size %s", helper.ByteFormat(fileSize))
 			defer os.Remove(tmp)
 		} else {
 			log.Errorf("Copy err: %s", err.Error())

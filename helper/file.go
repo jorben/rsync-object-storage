@@ -2,6 +2,7 @@ package helper
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -97,9 +98,33 @@ func Md5(path string) (string, error) {
 	return md5Checksum, nil
 }
 
-// ByteCountSI 将字节为单位的大小转换为易读的字符串格式
-func ByteCountSI(b int64) string {
-	const unit = 1000 // 使用SI标准，1KB = 1000B
+// Sha256 计算文件的SHA256
+func Sha256(path string) (string, error) {
+	// 打开文件
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// 创建一个新的SHA256哈希计算器
+	hash := sha256.New()
+
+	// 读取文件内容并更新哈希计算器
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	// 计算最终的哈希值
+	sum := hash.Sum(nil)
+
+	// 将哈希值转换为十六进制字符串
+	return fmt.Sprintf("%x", sum), nil
+}
+
+// ByteFormat 将字节为单位的大小转换为易读的字符串格式
+func ByteFormat(b int64) string {
+	const unit = 1024
 	if b < unit {
 		return fmt.Sprintf("%d B", b) // 小于1KB直接以B为单位
 	}
