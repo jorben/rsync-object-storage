@@ -80,8 +80,8 @@ func (w *Watcher) Watch() error {
 		return err
 	}
 
-	// 热点数据集合
-	hotKeySet := make(map[string]string)
+	// 热点延迟集合
+	delayKeys := make(map[string]string)
 	var mu sync.Mutex
 
 	ticker := time.NewTicker(w.HotDelay)
@@ -112,7 +112,7 @@ func (w *Watcher) Watch() error {
 					// 丢入set中，合并多个同名文件的事件（热点降温）
 					log.Debugf("Hot path, will be delay sync %s", event.Name)
 					mu.Lock()
-					hotKeySet[event.Name] = ""
+					delayKeys[event.Name] = ""
 					mu.Unlock()
 				} else {
 					w.PutChan <- event.Name
@@ -138,18 +138,13 @@ func (w *Watcher) Watch() error {
 
 		case <-ticker.C:
 			// 处理降温后的热点数据key
-			var deleteKeys []string
-			for key := range hotKeySet {
+			for key := range delayKeys {
 				log.Debugf("Get delayed path %s", key)
 				w.PutChan <- key
-				deleteKeys = append(deleteKeys, key)
+				mu.Lock()
+				delete(delayKeys, key)
+				mu.Unlock()
 			}
-			mu.Lock()
-			for _, key := range deleteKeys {
-				delete(hotKeySet, key)
-			}
-			mu.Unlock()
-			deleteKeys = deleteKeys[:0]
 
 		case err, ok := <-w.Notify.Errors:
 			if !ok {
