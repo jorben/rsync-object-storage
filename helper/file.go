@@ -53,6 +53,26 @@ func IsIgnore(path string, ignoreList []string) bool {
 	return false
 }
 
+// Copy 拷贝文件
+func Copy(src, dst string) (written int64, err error) {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return 0, err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return 0, err
+	}
+	defer dstFile.Close()
+
+	if written, err = io.Copy(dstFile, srcFile); err != nil {
+		return 0, err
+	}
+	return written, nil
+}
+
 // Md5 计算文件的MD5
 func Md5(path string) (string, error) {
 	// 打开文件
@@ -75,4 +95,18 @@ func Md5(path string) (string, error) {
 	md5Checksum := hex.EncodeToString(hashInBytes)
 
 	return md5Checksum, nil
+}
+
+// ByteCountSI 将字节为单位的大小转换为易读的字符串格式
+func ByteCountSI(b int64) string {
+	const unit = 1000 // 使用SI标准，1KB = 1000B
+	if b < unit {
+		return fmt.Sprintf("%d B", b) // 小于1KB直接以B为单位
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/helper"
+	"github.com/jorben/rsync-object-storage/kv"
 	"github.com/jorben/rsync-object-storage/log"
-	"github.com/jorben/rsync-object-storage/ttlset"
 	"io/fs"
 	"path/filepath"
 	"time"
@@ -44,13 +44,13 @@ func (t *Transfer) Run(ctx context.Context) {
 
 			// 是否是文件夹，文件夹需要递归其子文件（RENAME事件不会收到子文件的事件）
 			err := filepath.WalkDir(path, func(subPath string, d fs.DirEntry, err error) error {
+				// 将执行Put的记录加入到kv，供热点文件发现
+				kv.Set(subPath, "", t.HotDelay)
 				if err := t.Storage.FPutObject(ctx, subPath); err != nil {
 					log.Errorf("FPutObject err: %s, file: %s", err.Error(), subPath)
 					return nil
 				}
 				log.Infof("Sync success, path: %s", subPath)
-				// 将执行成功的记录加入到TTLSet，供热点文件发现
-				ttlset.Add(subPath, t.HotDelay)
 				return nil
 			})
 			if err != nil {

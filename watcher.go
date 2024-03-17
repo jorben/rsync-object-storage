@@ -4,8 +4,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/helper"
+	"github.com/jorben/rsync-object-storage/kv"
 	"github.com/jorben/rsync-object-storage/log"
-	"github.com/jorben/rsync-object-storage/ttlset"
 	"io/fs"
 	"path/filepath"
 	"sync"
@@ -108,7 +108,7 @@ func (w *Watcher) Watch() error {
 			// 文件发生变更
 			if event.Has(fsnotify.Write) {
 				// 判断文件是否热点文件，热点文件进行延迟更新，以节省流量和操作次数
-				if ttlset.Exists(event.Name) {
+				if kv.Exists(event.Name) {
 					// 丢入set中，合并多个同名文件的事件（热点降温）
 					log.Debugf("Hot path, will be delay sync %s", event.Name)
 					mu.Lock()

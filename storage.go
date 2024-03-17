@@ -135,7 +135,25 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 	}
 
 	objectName = s.GetRemotePath(objectName)
-	if _, err := s.Minio.FPutObject(ctx, s.Bucket, objectName, localPath, minio.PutObjectOptions{}); err != nil {
+	tmp := localPath
+	// 先拷贝 再上传
+	randomString, err := helper.RandomString(32)
+	if err != nil {
+		log.Errorf("RandomString err: %s", err.Error())
+	} else {
+		tmp = "./." + randomString
+		fileSize, err := helper.Copy(localPath, tmp)
+		if err == nil {
+			log.Debugf("Copy success, size %s", helper.ByteCountSI(fileSize))
+			defer os.Remove(tmp)
+		} else {
+			log.Errorf("Copy err: %s", err.Error())
+			// 拷贝失败，使用原始文件路径
+			tmp = localPath
+		}
+	}
+
+	if _, err := s.Minio.FPutObject(ctx, s.Bucket, objectName, tmp, minio.PutObjectOptions{}); err != nil {
 		return err
 	}
 	return nil
