@@ -14,6 +14,7 @@ import (
 type Transfer struct {
 	LocalPrefix  string
 	RemotePrefix string
+	HotDelay     time.Duration
 	PutChan      chan string
 	DeleteChan   chan string
 	Storage      *Storage
@@ -23,6 +24,7 @@ func NewTransfer(c *config.SyncConfig, putCh chan string, deleteCh chan string, 
 	return &Transfer{
 		LocalPrefix:  c.Local.Path,
 		RemotePrefix: c.Remote.Path,
+		HotDelay:     time.Duration(c.Sync.RealTime.HotDelay) * time.Minute,
 		PutChan:      putCh,
 		DeleteChan:   deleteCh,
 		Storage:      storage,
@@ -48,7 +50,7 @@ func (t *Transfer) Run(ctx context.Context) {
 				}
 				log.Infof("Sync success, path: %s", subPath)
 				// 将执行成功的记录加入到TTLSet，供热点文件发现
-				ttlset.Add(subPath, 5*time.Minute)
+				ttlset.Add(subPath, t.HotDelay)
 				return nil
 			})
 			if err != nil {

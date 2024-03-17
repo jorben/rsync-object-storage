@@ -15,6 +15,7 @@ import (
 type Watcher struct {
 	Enable      bool
 	Ignore      []string
+	HotDelay    time.Duration
 	LocalPrefix string
 	Notify      *fsnotify.Watcher
 	PutChan     chan string
@@ -30,6 +31,7 @@ func NewWatcher(c *config.SyncConfig, putCh chan string, deleteCh chan string) (
 
 	return &Watcher{
 		Enable:      c.Sync.RealTime.Enable,
+		HotDelay:    time.Duration(c.Sync.RealTime.HotDelay) * time.Minute,
 		Notify:      notify,
 		PutChan:     putCh,
 		DeleteChan:  deleteCh,
@@ -82,7 +84,7 @@ func (w *Watcher) Watch() error {
 	hotKeySet := make(map[string]string)
 	var mu sync.Mutex
 
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(w.HotDelay)
 	defer ticker.Stop()
 
 	for {
@@ -108,7 +110,7 @@ func (w *Watcher) Watch() error {
 				// 判断文件是否热点文件，热点文件进行延迟更新，以节省流量和操作次数
 				if ttlset.Exists(event.Name) {
 					// 丢入set中，合并多个同名文件的事件（热点降温）
-					log.Debugf("Hotspot path, will be delay sync %s", event.Name)
+					log.Debugf("Hot path, will be delay sync %s", event.Name)
 					mu.Lock()
 					hotKeySet[event.Name] = ""
 					mu.Unlock()
@@ -148,6 +150,7 @@ func (w *Watcher) Watch() error {
 			}
 			mu.Unlock()
 			deleteKeys = deleteKeys[:0]
+
 		case err, ok := <-w.Notify.Errors:
 			if !ok {
 				continue

@@ -27,7 +27,8 @@ type SyncConfig struct {
 	} `yaml:"remote"`
 	Sync struct {
 		RealTime struct {
-			Enable bool `yaml:"enable"`
+			Enable   bool `yaml:"enable"`
+			HotDelay int  `yaml:"hot_delay"`
 		} `yaml:"real_time"`
 		CheckJob struct {
 			Enable   bool   `yaml:"enable"`
@@ -67,6 +68,7 @@ func (c *SyncConfig) GetString() string {
 	s += fmt.Sprintln("Sync: -----------------------------------")
 	s += fmt.Sprintln("  Real-time:")
 	s += fmt.Sprintf("    Enable:\t| %t\n", c.Sync.RealTime.Enable)
+	s += fmt.Sprintf("    HotDelay:\t| %d minute\n", c.Sync.RealTime.HotDelay)
 	s += fmt.Sprintln("  Check-job:")
 	s += fmt.Sprintf("    Enable:\t| %t\n", c.Sync.CheckJob.Enable)
 	s += fmt.Sprintf("    Interval:\t| %d hour\n", c.Sync.CheckJob.Interval)
@@ -96,6 +98,13 @@ func loadConfig(path string) *SyncConfig {
 	// 处理remote.path中的前导/
 	if len(cfg.Remote.Path) > 0 && "/" == cfg.Remote.Path[0:1] {
 		cfg.Remote.Path = strings.TrimLeft(cfg.Remote.Path, "/")
+	}
+
+	// 处理Hot delay，最小1分钟，最大60分钟
+	if cfg.Sync.RealTime.HotDelay < 1 {
+		cfg.Sync.RealTime.HotDelay = 1
+	} else if cfg.Sync.RealTime.HotDelay > 60 {
+		cfg.Sync.RealTime.HotDelay = 60
 	}
 
 	return cfg

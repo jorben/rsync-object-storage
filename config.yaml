@@ -16,7 +16,8 @@ remote:
 sync:
   # 是否启用实时同步（监听本地文件变更进行同步，仅同步服务运行期间发生变更的文件，可结合check_job实现全量同步）
   real_time:
-    enable: true
+    enable: false
+    hot_delay: 5 # 单位分钟（1-60），对频繁修改的文件进行延迟同步，避免频繁的覆盖上传
   # 是否启用定期文件对账（扫描对比本地与远端文件差异进行同步）
   check_job:
     enable: true
