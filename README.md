@@ -77,7 +77,7 @@ name: ros
 services:
   ros:
     container_name: ros
-    image: ghcr.io/jorben/rsync-object-storage:latest
+    image: jorbenzhu/rsync-object-storage:latest
     command: ["/app/ros", "-c", "/app/config.yaml"]
     environment:
       MY_SECRET_ID: #在这里配置你的对象存储SECRET_ID
