@@ -1,6 +1,12 @@
 # rsync-object-storage
 一个同步工具，可以监听本地文件变更，实时同步到远端（s3）对象存储
 
+[![Build]][build_url]
+[![Version]][tag_url]
+[![Size]][hub_url]
+[![Pulls]][hub_url]
+[![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](http://copyfree.org)
+
 ### 功能点
 
 - 实时同步
@@ -105,3 +111,12 @@ sudo sysctl fs.inotify.max_user_watches=102400 | sudo tee -a /etc/sysctl.conf
 cat /proc/sys/fs/inotify/max_user_watches
 
 ```
+
+[build_url]: https://github.com/jorben/rsync-object-storage/
+[hub_url]: https://hub.docker.com/r/jorbenzhu/rsync-object-storage/
+[tag_url]: https://hub.docker.com/r/jorbenzhu/rsync-object-storage/tags
+
+[Build]: https://github.com/jorben/rsync-object-storage/actions/workflows/dockerbuild.yml/badge.svg
+[Size]: https://img.shields.io/docker/image-size/jorbenzhu/rsync-object-storage/latest?color=066da5&label=size
+[Pulls]: https://img.shields.io/docker/pulls/jorbenzhu/rsync-object-storage.svg?style=flat&label=pulls&logo=docker
+[Version]: https://img.shields.io/docker/v/jorbenzhu/rsync-object-storage/latest?arch=amd64&sort=semver&color=066da5
