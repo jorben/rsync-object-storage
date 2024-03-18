@@ -1,7 +1,93 @@
 # rsync-object-storage
-一个同步工具，可以监听本地文件变更，同步到远端（s3）对象存储
+一个同步工具，可以监听本地文件变更，实时同步到远端（s3）对象存储
 
+### 功能点
 
+- 实时同步
+  - 支持监听本地路径下（含所有子目录）文件变更事件，实时发起同步本地变更到远端对象存储
+  - 本地的删除操作也会同步删除远端对应文件（若不想删除远端可启用对象存储的版本）
+  - 支持热点文件降温，配置时间内反复触发变更的文件，降低同步频率，（配置文件中`sync.real_time.hot_delay`配置项）
+- 定时同步
+  - 支持比对本地路径下全部文件与远端对应文件的差异，对存在差异的文件进行同步（只针对本地存在的文件操作同步，本地不存在但远端存在的文件不会被删除）
+  - 支持指定首次任务启动时间点（配置文件中`sync.check_job.start_at`配置项），便于指定在非繁忙时点开始定期同步
+  - 支持指定任务执行频率（配置文件中`sync.check_job.interval`配置项），将按周期在start_at时点启动
+- 支持单独启用实时或定时同步（配置文件中`sync.real_time.enable`和`sycn.check_job.enable`配置项）
+- 支持忽略，可按文件名/目录名称匹配，支持名称中含*通配（配置文件中`sync.ignore`配置项）
+
+### 使用方法
+#### Docker compose
+- config.yaml 示例
+```yaml
+# 本地路径配置
+local:
+  path: /data # 本地需要同步的路径，容器中则为所需同步的路径映射容器中的路径
+
+# 远端对象存储配置
+remote:
+  endpoint: cos.ap-guangzhou.myqcloud.com # 例如：cos.ap-guangzhou.myqcloud.com
+  use_ssl: true
+  secret_id: ${MY_SECRET_ID} # 可设置在环境变量中
+  secret_key: ${MY_SECRET_KEY} # 可设置在环境变量中
+  bucket: somebucket # 这里配置你的存储桶名称
+  region: ap-guangzhou # 这里配置存储桶所在区域代码，无区域可留空
+  path: / # 这里配置远端路径，桶根路径可配置为/
+
+# 同步配置
+sync:
+  # 是否启用实时同步（监听本地文件变更进行同步，仅同步服务运行期间发生变更的文件，可结合check_job实现全量同步）
+  real_time:
+    enable: true 
+    hot_delay: 5 # 在该时间内反复触发变更的热点文件将在该配置的时间内仅最后做1次同步动作，单位分钟（可有效减少反复变更带来的流量消耗）
+  # 是否启用定期文件对账（扫描对比本地与远端文件差异进行同步）
+  check_job:
+    enable: true  # 是否启用定时全量检查和同步（检查存在差异时会触发差异文件的同步）
+    interval: 24 # 文件对账频率间隔，单位小时
+    start_at: 3:00:00 # 文件对账启动时间（建议选在凌晨），将结合频率间隔配置定期执行
+  # 忽略不同步的文件和文件夹
+  ignore:
+    - .*.swp
+    - "*~"
+    - .DS_Store
+    - .ds_store
+    - .svn
+    - .git
+    - Thumbs.db
+    - .idea
+log:
+  - writer: console
+    formatter: console
+    level: INFO 
+  - writer: file
+    formatter: json
+    level: DEBUG
+    format_config:
+      time_fmt: "2006-01-02 15:04:05.000"
+    write_config:
+      log_path: "./log/ros_cos.log"
+      max_size: 100
+      max_age: 30
+      compress: true
+```
+- docker-compose.yml 示例
+```yaml
+version: "3.8"
+
+name: ros
+
+services:
+  ros:
+    container_name: ros
+    image: ghcr.io/jorben/rsync-object-storage:latest
+    command: ["/app/ros", "-c", "/app/config.yaml"]
+    environment:
+      MY_SECRET_ID: #在这里配置你的对象存储SECRET_ID
+      MY_SECRET_KEY: #在这里配置你的对象存储SECRET_KEY
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /data/ros/config.yaml:/app/config.yaml:ro #这里替换你的本地配置文件路径，映射为容器的/app/config.yaml路径
+      - /data/sync_dir:/data:ro #这里替换你需要同步的本地路径，映射为容器的/data路径
+    restart: always
+```
 
 ### 注意事项
 
