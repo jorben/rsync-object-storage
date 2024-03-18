@@ -1,6 +1,6 @@
 module github.com/jorben/rsync-object-storage
 
-go 1.20
+go 1.21
 
 replace github.com/minio/minio-go/v7 => github.com/jorben/minio-go/v7 v7.0.0-20240315175604-7872ece73c72
 
