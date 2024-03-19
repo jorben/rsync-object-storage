@@ -11,6 +11,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"os"
 	"strings"
+	"time"
 )
 
 type Storage struct {
@@ -168,6 +169,23 @@ func (s *Storage) IsSame(ctx context.Context, localPath string) bool {
 		log.Debugf("StatObject %s, path: %s", err.Error(), objectName)
 		return false
 	}
+	// 是否分片上传的文件，分片上传的Etag是各分片MD5值合并后的MD5，所以与文件MCD5不一致，且ETAG带有分片数量标识
+	// 分片场景，通过校验文件大小和修改时间来判断是否一致
+	if strings.Contains(objectInfo.ETag, "-") {
+		fileInfo, err := os.Stat(localPath)
+		if err != nil {
+			log.Errorf("Stat file err: %s", err.Error())
+			return false
+		}
+		log.Debugf("Compare big file: %s, Size: %d, ModifyTime:%s, Remote Size:%d, ModifyTime:%s",
+			localPath, fileInfo.Size(), fileInfo.ModTime().Format("2006-01-02 15:04:05"),
+			objectInfo.Size, objectInfo.LastModified.In(time.Now().Location()).Format("2006-01-02 15:04:05"))
+		if fileInfo.Size() != objectInfo.Size || fileInfo.ModTime().After(objectInfo.LastModified) {
+			return false
+		}
+		return true
+	}
+
 	// 计算本地文件的md5
 	localMd5, _ := helper.Md5(localPath)
 	log.Debugf("Compare file: %s, Md5: %s, Remote ETag: %s", localPath, localMd5, objectInfo.ETag)
