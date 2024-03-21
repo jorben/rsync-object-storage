@@ -11,6 +11,16 @@ import (
 	"strings"
 )
 
+// SymlinkMethod
+const (
+	// Skip 跳过
+	Skip string = "skip"
+	// Addr 复制链接地址
+	Addr string = "addr"
+	// File 复制目标文件
+	File string = "file"
+)
+
 // SyncConfig 同步配置
 type SyncConfig struct {
 	Local struct {
@@ -35,7 +45,8 @@ type SyncConfig struct {
 			Interval int    `yaml:"interval"`
 			StartAt  string `yaml:"start_at"`
 		} `yaml:"check_job"`
-		Ignore []string `yaml:"ignore,omitempty"`
+		Symlink string   `yaml:"symlink"`
+		Ignore  []string `yaml:"ignore,omitempty"`
 	} `yaml:"sync"`
 	Log []log.OutputConfig `yaml:"log"`
 }
@@ -73,6 +84,7 @@ func (c *SyncConfig) GetString() string {
 	s += fmt.Sprintf("    Enable:\t| %t\n", c.Sync.CheckJob.Enable)
 	s += fmt.Sprintf("    Interval:\t| %d hour\n", c.Sync.CheckJob.Interval)
 	s += fmt.Sprintf("    Start-at:\t| %s\n", c.Sync.CheckJob.StartAt)
+	s += fmt.Sprintf("  Symlink:\t| %s\n", c.Sync.Symlink)
 	s += fmt.Sprintf("  Ignore:\t| %v\n", c.Sync.Ignore)
 	s += fmt.Sprint("******************************************")
 	return s
@@ -105,6 +117,12 @@ func loadConfig(path string) *SyncConfig {
 		cfg.Sync.RealTime.HotDelay = 1
 	} else if cfg.Sync.RealTime.HotDelay > 60 {
 		cfg.Sync.RealTime.HotDelay = 60
+	}
+
+	// 处理symlink策略
+	cfg.Sync.Symlink = strings.ToLower(cfg.Sync.Symlink)
+	if cfg.Sync.Symlink != Skip && cfg.Sync.Symlink != Addr && cfg.Sync.Symlink != File {
+		cfg.Sync.Symlink = Skip
 	}
 
 	return cfg

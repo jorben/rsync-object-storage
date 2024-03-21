@@ -189,7 +189,7 @@ func (s *Storage) IsSame(ctx context.Context, localPath string) bool {
 	// 计算本地文件的md5
 	localMd5, _ := helper.Md5(localPath)
 	log.Debugf("Compare file: %s, Md5: %s, Remote ETag: %s", localPath, localMd5, objectInfo.ETag)
-	if localMd5 == objectInfo.ETag {
+	if strings.ToLower(localMd5) == strings.ToLower(objectInfo.ETag) {
 		return true
 	}
 	return false

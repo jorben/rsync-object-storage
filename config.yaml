@@ -1,8 +1,8 @@
-# 本地路径配置
+# local 本地路径配置
 local:
   path:
 
-# 远端对象存储配置
+# remote 远端对象存储配置
 remote:
   endpoint: cos.ap-guangzhou.myqcloud.com # 例如：cos.ap-guangzhou.myqcloud.com
   use_ssl: true
@@ -12,18 +12,25 @@ remote:
   region:
   path:
 
-# 同步配置
+# sync 同步配置
 sync:
-  # 是否启用实时同步（监听本地文件变更进行同步，仅同步服务运行期间发生变更的文件，可结合check_job实现全量同步）
+  # real_time.enable 是否启用实时同步（监听本地文件变更进行同步，仅同步服务运行期间发生变更的文件，可结合check_job实现全量同步）
   real_time:
-    enable: false
+    enable: true
     hot_delay: 5 # 单位分钟（1-60），对频繁修改的文件进行延迟同步，避免频繁的覆盖上传
-  # 是否启用定期文件对账（扫描对比本地与远端文件差异进行同步）
+  # check_job.enable 是否启用定期文件对账（扫描对比本地与远端文件差异进行同步）
   check_job:
     enable: true
     interval: 72 # 文件对账频率间隔，单位小时
     start_at: 4:00:00 # 文件对账启动时间（建议选在凌晨），将结合频率间隔配置定期执行
-  # 忽略不同步的文件和文件夹
+
+  # symlink 由于对象存储不支持符号链接，所以需要选择对符号链接文件的处理策略，可选(skip|addr|file)，默认为skip
+  # - skip 跳过符号链接文件，相当于忽略掉符号链接文件
+  # - addr 把链接指向的地址保存到对象存储，用于记录链接的目标
+  # - file 复制链接指向的实体文件到对象存储（为避免循环引用，符号链接指向文件夹时则会采用addr策略）
+  symlink: addr
+
+  # ignore 忽略不同步的文件和文件夹
   ignore:
     - .*.swp
     - "*~"
@@ -33,6 +40,7 @@ sync:
     - .git
     - Thumbs.db
     - .idea
+
 log:
   - writer: console
     formatter: console
