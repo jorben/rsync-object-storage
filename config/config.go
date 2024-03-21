@@ -3,22 +3,13 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/jorben/rsync-object-storage/enum"
 	"github.com/jorben/rsync-object-storage/helper"
 	"github.com/jorben/rsync-object-storage/log"
 	conf "github.com/ldigit/config"
 	"os"
 	"path/filepath"
 	"strings"
-)
-
-// SymlinkMethod
-const (
-	// Skip 跳过
-	Skip string = "skip"
-	// Addr 复制链接地址
-	Addr string = "addr"
-	// File 复制目标文件
-	File string = "file"
 )
 
 // SyncConfig 同步配置
@@ -121,8 +112,10 @@ func loadConfig(path string) *SyncConfig {
 
 	// 处理symlink策略
 	cfg.Sync.Symlink = strings.ToLower(cfg.Sync.Symlink)
-	if cfg.Sync.Symlink != Skip && cfg.Sync.Symlink != Addr && cfg.Sync.Symlink != File {
-		cfg.Sync.Symlink = Skip
+	if cfg.Sync.Symlink != enum.SymlinkSkip &&
+		cfg.Sync.Symlink != enum.SymlinkAddr &&
+		cfg.Sync.Symlink != enum.SymlinkFile {
+		cfg.Sync.Symlink = enum.SymlinkSkip
 	}
 
 	return cfg

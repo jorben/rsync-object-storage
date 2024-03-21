@@ -31,6 +31,25 @@ func IsExist(path string) (bool, error) {
 	}
 }
 
+// IsSymlink 判断路径是否符号链接
+func IsSymlink(path string) (bool, error) {
+	if info, err := os.Lstat(path); err != nil {
+		return false, err
+	} else if os.ModeSymlink == (info.Mode() & os.ModeSymlink) {
+		return true, nil
+	}
+	return false, nil
+}
+
+// GetSymlinkTarget 获取符号链接指向的目标
+func GetSymlinkTarget(path string) (string, error) {
+	if target, err := os.Readlink(path); err != nil {
+		return "", err
+	} else {
+		return target, nil
+	}
+}
+
 // IsIgnore 判断路径或文件是否在忽略配置中
 func IsIgnore(path string, ignoreList []string) bool {
 	for _, ignore := range ignoreList {

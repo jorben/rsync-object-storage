@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/config"
+	"github.com/jorben/rsync-object-storage/enum"
 	"github.com/jorben/rsync-object-storage/helper"
 	"github.com/jorben/rsync-object-storage/log"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -19,6 +21,7 @@ type Storage struct {
 	Bucket       string
 	LocalPrefix  string
 	RemotePrefix string
+	SymLink      string
 }
 
 // NewStorage 获取对象存储客户端实例
@@ -39,6 +42,7 @@ func NewStorage(c *config.SyncConfig) (*Storage, error) {
 		Bucket:       c.Remote.Bucket,
 		LocalPrefix:  c.Local.Path,
 		RemotePrefix: c.Remote.Path,
+		SymLink:      c.Sync.Symlink,
 	}, nil
 }
 
@@ -114,6 +118,47 @@ func (s *Storage) RemoveObjects(ctx context.Context, objectPath string) (someErr
 // FPutObject 上传对象
 func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 	objectName := localPath
+	// 判断是否符号链接
+	if isLink, _ := helper.IsSymlink(localPath); isLink {
+		switch s.SymLink {
+		case enum.SymlinkSkip:
+			log.Debugf("SymlinkSkip %s", localPath)
+			return enum.ErrSkipTransfer
+		case enum.SymlinkFile:
+			if isDir, _ := helper.IsDir(localPath); !isDir {
+				log.Debugf("SymlinkFile %s", localPath)
+				break
+			}
+			// 如果是文件夹 则应用Addr策略
+			log.Debugf("Dir fallthrough to SymlinkAddr %s", localPath)
+			fallthrough
+		case enum.SymlinkAddr:
+			log.Debugf("SymlinkAddr %s", localPath)
+			objectName += ".link"
+			// 获取目标地址
+			target, _ := helper.GetSymlinkTarget(localPath)
+			// 将地址写入临时文件
+			randomString, err := helper.RandomString(32)
+			if err != nil {
+				log.Errorf("RandomString err: %s", err.Error())
+				randomString = "tmp_link_content"
+			}
+			linkContentFile, err := os.Create("./" + randomString)
+			if err != nil {
+				return err
+			}
+			defer linkContentFile.Close()
+			defer os.Remove("./" + randomString)
+			_, err = io.WriteString(linkContentFile, target)
+			if err != nil {
+				return err
+			}
+			localPath = "./" + randomString
+		default:
+			return enum.ErrSkipTransfer
+		}
+	}
+
 	if isDir, _ := helper.IsDir(localPath); isDir {
 		// 如果是文件夹则创建objectName/.keep文件，现有接口不支持直接创建空文件夹
 		objectName += "/.keep"
@@ -130,8 +175,7 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 	} else {
 		// 文件 则需要对远端内容一致性比较，内容一致则不重复上传
 		if isSame := s.IsSame(ctx, localPath); isSame {
-			log.Debugf("Consistent, skipping %s", localPath)
-			return nil
+			return enum.ErrSkipTransfer
 		}
 	}
 

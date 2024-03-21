@@ -49,6 +49,11 @@ sync:
     enable: true  # 是否启用定时全量检查和同步（检查存在差异时会触发差异文件的同步）
     interval: 24 # 文件对账频率间隔，单位小时
     start_at: 3:00:00 # 文件对账启动时间（建议选在凌晨），将结合频率间隔配置定期执行
+  # symlink 由于对象存储不支持符号链接，所以需要选择对符号链接文件的处理策略，可选(skip|addr|file)，默认为skip
+  # - skip 跳过符号链接文件，相当于忽略掉符号链接文件
+  # - addr 把链接指向的地址保存到对象存储，用于记录链接的目标
+  # - file 复制链接指向的实体文件到对象存储（为避免循环引用，符号链接指向文件夹时则会采用addr策略）
+  symlink: addr
   # 忽略不同步的文件和文件夹
   ignore:
     - .*.swp
@@ -77,8 +82,6 @@ log:
 - docker-compose.yml 示例
 ```yaml
 version: "3.8"
-
-name: ros
 
 services:
   ros:

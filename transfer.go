@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/jorben/rsync-object-storage/config"
+	"github.com/jorben/rsync-object-storage/enum"
 	"github.com/jorben/rsync-object-storage/helper"
 	"github.com/jorben/rsync-object-storage/kv"
 	"github.com/jorben/rsync-object-storage/log"
@@ -46,11 +48,13 @@ func (t *Transfer) Run(ctx context.Context) {
 			err := filepath.WalkDir(path, func(subPath string, d fs.DirEntry, err error) error {
 				// 将执行Put的记录加入到kv，供热点文件发现
 				kv.Set(subPath, "", t.HotDelay)
-				if err := t.Storage.FPutObject(ctx, subPath); err != nil {
+				if err := t.Storage.FPutObject(ctx, subPath); err == nil {
+					log.Infof("Sync success, path: %s", subPath)
+				} else if errors.Is(err, enum.ErrSkipTransfer) {
+					log.Debugf("Skipping %s", subPath)
+				} else {
 					log.Errorf("FPutObject err: %s, file: %s", err.Error(), subPath)
-					return nil
 				}
-				log.Infof("Sync success, path: %s", subPath)
 				return nil
 			})
 			if err != nil {
