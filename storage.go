@@ -172,14 +172,14 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 			}
 			_ = emptyFile.Close()
 		}
-	} else {
-		// 文件 则需要对远端内容一致性比较，内容一致则不重复上传
-		if isSame := s.IsSame(ctx, localPath); isSame {
-			return enum.ErrSkipTransfer
-		}
 	}
 
 	objectName = s.GetRemotePath(objectName)
+	// 文件 则需要对远端内容一致性比较，内容一致则不重复上传
+	if isSame := s.IsSame(ctx, localPath, objectName); isSame {
+		return enum.ErrSkipTransfer
+	}
+
 	tmp := localPath
 	// 先拷贝 再上传
 	randomString, err := helper.RandomString(32)
@@ -205,12 +205,14 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 }
 
 // IsSame 判断本地文件和远端文件内容是否一致
-func (s *Storage) IsSame(ctx context.Context, localPath string) bool {
-	objectName := s.GetRemotePath(localPath)
-	objectInfo, err := s.Minio.StatObject(ctx, s.Bucket, objectName, minio.StatObjectOptions{})
+func (s *Storage) IsSame(ctx context.Context, localPath, remotePath string) bool {
+	if remotePath == "" {
+		remotePath = s.GetRemotePath(localPath)
+	}
+	objectInfo, err := s.Minio.StatObject(ctx, s.Bucket, remotePath, minio.StatObjectOptions{})
 	if err != nil {
 		// 多半是Key不存在
-		log.Debugf("StatObject %s, path: %s", err.Error(), objectName)
+		log.Debugf("StatObject %s, path: %s", err.Error(), remotePath)
 		return false
 	}
 	// 是否分片上传的文件，分片上传的Etag是各分片MD5值合并后的MD5，所以与文件MCD5不一致，且ETAG带有分片数量标识
@@ -232,7 +234,7 @@ func (s *Storage) IsSame(ctx context.Context, localPath string) bool {
 
 	// 计算本地文件的md5
 	localMd5, _ := helper.Md5(localPath)
-	log.Debugf("Compare file: %s, Md5: %s, Remote ETag: %s", localPath, localMd5, objectInfo.ETag)
+	log.Debugf("Compare %s, Local Md5: %s, Remote ETag: %s", remotePath, localMd5, objectInfo.ETag)
 	if strings.ToLower(localMd5) == strings.ToLower(objectInfo.ETag) {
 		return true
 	}

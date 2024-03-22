@@ -41,6 +41,15 @@ func IsSymlink(path string) (bool, error) {
 	return false, nil
 }
 
+// IsDirEmpty 判断文件夹是否为空
+func IsDirEmpty(dirPath string) (bool, error) {
+	if entries, err := os.ReadDir(dirPath); err == nil {
+		return len(entries) == 0, nil
+	} else {
+		return false, err
+	}
+}
+
 // GetSymlinkTarget 获取符号链接指向的目标
 func GetSymlinkTarget(path string) (string, error) {
 	if target, err := os.Readlink(path); err != nil {
