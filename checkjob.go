@@ -88,11 +88,9 @@ func (c *CheckJob) Walk(ctx context.Context) {
 		if d.IsDir() && helper.IsIgnore(path, c.Ignore) {
 			return filepath.SkipDir
 		}
-		// todo 空文件夹处理，非空文件夹只需处理其内部文件即可
-		// todo 符号链接处理
 		// 对比文件
-		if !d.IsDir() && !helper.IsIgnore(path, c.Ignore) {
-			if isSame := c.Storage.IsSame(ctx, path, ""); !isSame {
+		if !helper.IsIgnore(path, c.Ignore) {
+			if isSame := c.Storage.IsSameV2(ctx, path, ""); !isSame {
 				// 文件存在差异，丢入变更队列
 				c.PutChan <- path
 				log.Infof("Differences found %s", path)
