@@ -1,7 +1,9 @@
 package helper
 
 import (
+	"crypto/md5"
 	"crypto/rand"
+	"encoding/hex"
 	"math"
 	"math/big"
 	"strings"
@@ -36,4 +38,12 @@ func RandomString(length int) (string, error) {
 		b[i] = charset[n.Int64()]
 	}
 	return string(b), nil
+}
+
+// StringMd5 计算字符串的MD5值
+func StringMd5(str string) string {
+	hash := md5.New()
+	hash.Write([]byte(str))
+	// 计算 MD5 校验和
+	return hex.EncodeToString(hash.Sum(nil))
 }

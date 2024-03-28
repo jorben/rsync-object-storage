@@ -221,7 +221,7 @@ func (s *Storage) IsSameV2(ctx context.Context, localPath, remotePath string) bo
 		case enum.SymlinkFile:
 			if isDir, _ := helper.IsDir(localPath); !isDir {
 				log.Debugf("SymlinkFile %s", localPath)
-				localMd5, err = helper.Md5(localPath)
+				localMd5, err = helper.FileMd5(localPath)
 				if err != nil {
 					log.Errorf("MD5 error: %s", err.Error())
 					return false
@@ -237,11 +237,7 @@ func (s *Storage) IsSameV2(ctx context.Context, localPath, remotePath string) bo
 			// 获取目标地址
 			target, _ := helper.GetSymlinkTarget(localPath)
 			// 计算md5值
-			localMd5, err = helper.Md5(target)
-			if err != nil {
-				log.Errorf("MD5 error: %s", err.Error())
-				return false
-			}
+			localMd5 = helper.StringMd5(target)
 		default:
 			return true
 		}
@@ -285,7 +281,7 @@ func (s *Storage) IsSameV2(ctx context.Context, localPath, remotePath string) bo
 
 	// 计算本地文件的md5
 	if localMd5 == "" {
-		localMd5, _ = helper.Md5(localPath)
+		localMd5, _ = helper.FileMd5(localPath)
 	}
 	log.Debugf("Compare %s, Local Md5: %s, Remote ETag: %s", localPath, localMd5, objectInfo.ETag)
 	if strings.ToLower(localMd5) == strings.ToLower(objectInfo.ETag) {
@@ -327,7 +323,7 @@ func (s *Storage) IsSame(ctx context.Context, localPath, localMd5, remotePath st
 
 	// 计算本地文件的md5
 	if localMd5 == "" {
-		localMd5, _ = helper.Md5(localPath)
+		localMd5, _ = helper.FileMd5(localPath)
 	}
 	log.Debugf("Compare %s, Local Md5: %s, Remote ETag: %s", remotePath, localMd5, objectInfo.ETag)
 	if strings.ToLower(localMd5) == strings.ToLower(objectInfo.ETag) {

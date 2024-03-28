@@ -102,8 +102,8 @@ func Copy(src, dst string) (written int64, err error) {
 	return written, nil
 }
 
-// Md5 计算文件的MD5
-func Md5(path string) (string, error) {
+// FileMd5 计算文件的MD5
+func FileMd5(path string) (string, error) {
 	// 打开文件
 	file, err := os.Open(path)
 	if err != nil {
@@ -126,8 +126,8 @@ func Md5(path string) (string, error) {
 	return md5Checksum, nil
 }
 
-// Sha256 计算文件的SHA256
-func Sha256(path string) (string, error) {
+// FileSha256 计算文件的SHA256
+func FileSha256(path string) (string, error) {
 	// 打开文件
 	file, err := os.Open(path)
 	if err != nil {
