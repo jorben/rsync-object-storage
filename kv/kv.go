@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+var once sync.Once
 var globalKV *KV
 
 // Item 集合中的元素，包含值和过期时间
@@ -27,28 +28,35 @@ func newKV() *KV {
 }
 
 func init() {
-	globalKV = newKV()
-	go globalKV.clean(5 * time.Second)
+	go GetKV().clean(5 * time.Second)
+}
+
+// GetKV 获取KV实例
+func GetKV() *KV {
+	once.Do(func() {
+		globalKV = newKV()
+	})
+	return globalKV
 }
 
 // Set 往集合中添加元素
 func Set(key interface{}, value interface{}, ttl time.Duration) {
-	globalKV.set(key, value, ttl)
+	GetKV().set(key, value, ttl)
 }
 
 // Exists 判断元素是否在集合中且未过期
 func Exists(key interface{}) bool {
-	return globalKV.contains(key)
+	return GetKV().contains(key)
 }
 
 // Get 获取KV中的指定元素
 func Get(key interface{}) interface{} {
-	return globalKV.get(key)
+	return GetKV().get(key)
 }
 
 // Delete 删除KV中指定的元素
 func Delete(key interface{}) {
-	globalKV.delete(key)
+	GetKV().delete(key)
 }
 
 // set 往Set中增加元素
