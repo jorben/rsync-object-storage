@@ -1,11 +1,15 @@
-# rsync-object-storage
-一个同步工具，可以监听本地文件变更，实时同步到远端（s3）对象存储
-
+<div align="center">
+<h1>Rsync Object Storage</h1>
+  
 [![Build]][build_url]
 [![Version]][tag_url]
 [![Size]][hub_url]
 [![Pulls]][hub_url]
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](http://copyfree.org)
+<p>一个同步工具，可以监听本地文件变更，实时同步到远端（s3）对象存储</p>
+
+![rsync-object-storage](https://socialify.git.ci/jorben/rsync-object-storage/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Light)
+</div>
 
 ### 功能点
 
