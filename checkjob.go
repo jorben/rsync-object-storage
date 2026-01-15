@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/helper"
 	"github.com/jorben/rsync-object-storage/log"
 	"io/fs"
 	"path/filepath"
-	"time"
 )
 
-// CheckJob 定时问题
+// CheckJob 定时对账任务
 type CheckJob struct {
 	InitialDelay time.Duration
 	Interval     int
@@ -56,30 +57,53 @@ func NewCheckJob(c *config.SyncConfig, ch chan string, storage *Storage) *CheckJ
 }
 
 // Run Check job 启动入口
+// 支持通过context取消实现优雅退出
 func (c *CheckJob) Run(ctx context.Context) {
 	if !c.Enable {
 		log.Debug("The check job is disabled")
+		// 即使禁用也需要响应context取消
+		<-ctx.Done()
 		return
 	}
 	log.Debugf("The check job will start at %s", time.Now().Add(c.InitialDelay).Format("2006-01-02 15:04:05"))
-	time.AfterFunc(c.InitialDelay, func() {
-		// 执行首次校对任务
-		go c.Walk(ctx)
 
-		// 创建周期定时器
-		ticker := time.NewTicker(time.Duration(c.Interval) * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
+	// 使用select等待初始延迟或context取消
+	select {
+	case <-ctx.Done():
+		log.Debug("CheckJob received shutdown signal before first run, exiting...")
+		return
+	case <-time.After(c.InitialDelay):
+		// 执行首次校对任务
+		c.Walk(ctx)
+	}
+
+	// 创建周期定时器
+	ticker := time.NewTicker(time.Duration(c.Interval) * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Debug("CheckJob received shutdown signal, exiting...")
+			return
+		case <-ticker.C:
 			// 执行周期校对任务
-			go c.Walk(ctx)
+			c.Walk(ctx)
 		}
-	})
+	}
 }
 
 // Walk 遍历本地文件，对比与远端差异，存在差异的丢入变更队列
 func (c *CheckJob) Walk(ctx context.Context) {
 	log.Info("Check job begin")
 	err := filepath.WalkDir(c.LocalPrefix, func(path string, d fs.DirEntry, err error) error {
+		// 检查是否需要退出
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		if err != nil {
 			log.Errorf("WalkDir err: %s, skipping %s", err.Error(), path)
 			return filepath.SkipDir
@@ -92,13 +116,17 @@ func (c *CheckJob) Walk(ctx context.Context) {
 		if !helper.IsIgnore(path, c.Ignore) {
 			if isSame := c.Storage.IsSameV2(ctx, path, ""); !isSame {
 				// 文件存在差异，丢入变更队列
-				c.PutChan <- path
-				log.Infof("Differences found %s", path)
+				select {
+				case c.PutChan <- path:
+					log.Infof("Differences found %s", path)
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			}
 		}
 		return nil
 	})
-	if err != nil {
+	if err != nil && err != context.Canceled {
 		log.Errorf("WalkDir err: %s", err.Error())
 		return
 	}

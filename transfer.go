@@ -34,10 +34,18 @@ func NewTransfer(c *config.SyncConfig, putCh chan string, deleteCh chan string, 
 }
 
 // Run 消费队列，执行Put和Delete
+// 支持通过context取消实现优雅退出
 func (t *Transfer) Run(ctx context.Context) {
 	for {
 		select {
-		case path := <-t.PutChan:
+		case <-ctx.Done():
+			log.Debug("Transfer worker received shutdown signal, exiting...")
+			return
+		case path, ok := <-t.PutChan:
+			if !ok {
+				log.Debug("PutChan closed, Transfer worker exiting...")
+				return
+			}
 			// 路径是否存在（有一些临时文件，创建后可能立刻被删除了）
 			if isExist, _ := helper.IsExist(path); !isExist {
 				log.Debugf("Path is not exist %s", path)
@@ -46,6 +54,12 @@ func (t *Transfer) Run(ctx context.Context) {
 
 			// 是否是文件夹，文件夹需要递归其子文件（RENAME事件不会收到子文件的事件）
 			err := filepath.WalkDir(path, func(subPath string, d fs.DirEntry, err error) error {
+				// 检查是否需要退出
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
 				// 将执行Put的记录加入到kv，供热点文件发现
 				kv.Set(subPath, "", t.HotDelay)
 				if err := t.Storage.FPutObject(ctx, subPath); err == nil {
@@ -57,10 +71,14 @@ func (t *Transfer) Run(ctx context.Context) {
 				}
 				return nil
 			})
-			if err != nil {
+			if err != nil && err != context.Canceled {
 				log.Errorf("WalkDir err: %s", err.Error())
 			}
-		case path := <-t.DeleteChan:
+		case path, ok := <-t.DeleteChan:
+			if !ok {
+				log.Debug("DeleteChan closed, Transfer worker exiting...")
+				return
+			}
 			// 要判断路径是否存在（有一些文件修改保存策略是先删除再创建，避免串到了Create的后面，导致误删）
 			if isExist, _ := helper.IsExist(path); isExist {
 				log.Debugf("Path is still exist %s", path)
@@ -73,6 +91,5 @@ func (t *Transfer) Run(ctx context.Context) {
 			}
 			log.Infof("Remove success, path: %s", path)
 		}
-
 	}
 }

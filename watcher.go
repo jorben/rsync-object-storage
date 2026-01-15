@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"sync"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/helper"
@@ -8,7 +11,6 @@ import (
 	"github.com/jorben/rsync-object-storage/log"
 	"io/fs"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
@@ -68,27 +70,31 @@ func (w *Watcher) Close() {
 }
 
 // Watch 启动监听本地路径
-func (w *Watcher) Watch() error {
+// 支持通过context取消实现优雅退出
+func (w *Watcher) Watch(ctx context.Context) error {
 
 	if !w.Enable {
 		log.Debug("The real-time sync is disabled")
-		// Hold进程，以便单用check job的场景
-		<-make(chan struct{})
+		// Hold进程，以便单用check job的场景，但支持context取消
+		<-ctx.Done()
+		return nil
 	}
 
 	if err := w.Add(w.LocalPrefix); err != nil {
 		return err
 	}
 
-	// 热点延迟集合
-	delayKeys := make(map[string]string)
-	var mu sync.Mutex
+	// 热点延迟集合，使用sync.Map减少锁争用
+	var delayKeys sync.Map
 
 	ticker := time.NewTicker(w.HotDelay)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			log.Debug("Watcher received shutdown signal, exiting...")
+			return nil
 		case event, ok := <-w.Notify.Events:
 			if !ok || event.Has(fsnotify.Chmod) {
 				continue
@@ -109,11 +115,9 @@ func (w *Watcher) Watch() error {
 			if event.Has(fsnotify.Write) {
 				// 判断文件是否热点文件，热点文件进行延迟更新，以节省流量和操作次数
 				if kv.Exists(event.Name) {
-					// 丢入set中，合并多个同名文件的事件（热点降温）
+					// 使用sync.Map存储，无锁争用
 					log.Debugf("Hot path, will be delay sync %s", event.Name)
-					mu.Lock()
-					delayKeys[event.Name] = ""
-					mu.Unlock()
+					delayKeys.Store(event.Name, struct{}{})
 				} else {
 					w.PutChan <- event.Name
 				}
@@ -137,14 +141,14 @@ func (w *Watcher) Watch() error {
 			}
 
 		case <-ticker.C:
-			// 处理降温后的热点数据key
-			for key := range delayKeys {
-				log.Debugf("Get delayed path %s", key)
-				w.PutChan <- key
-				mu.Lock()
-				delete(delayKeys, key)
-				mu.Unlock()
-			}
+			// 处理降温后的热点数据key，使用sync.Map的Range方法
+			delayKeys.Range(func(key, _ interface{}) bool {
+				path := key.(string)
+				log.Debugf("Get delayed path %s", path)
+				w.PutChan <- path
+				delayKeys.Delete(key)
+				return true
+			})
 
 		case err, ok := <-w.Notify.Errors:
 			if !ok {

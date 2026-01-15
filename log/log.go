@@ -1,15 +1,32 @@
 package log
 
 import (
-	"github.com/natefinch/lumberjack"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/natefinch/lumberjack"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-// 为保持常用printf风格，采用zap的sugarLogger
+// logger 是日志组件的全局单例实例
+// 设计说明：采用单例模式简化日志调用，避免在每个函数中传递logger实例
+//
+// 测试时Mock方法：
+// 1. 在测试前调用 InitLogger 配置测试用的日志输出（如输出到buffer）
+// 2. 可以使用 zap.NewNop() 创建空日志器用于禁用日志输出：
+//
+//	func TestXxx(t *testing.T) {
+//	    // 保存原始logger
+//	    originalLogger := GetLogger()
+//	    // 使用空日志器
+//	    logger = zap.NewNop().Sugar()
+//	    defer func() { logger = originalLogger }()
+//	    // 执行测试...
+//	}
+//
+// 3. 或者配置输出到 zaptest.Buffer 以验证日志内容
 var logger *zap.SugaredLogger
 
 // OutputConfig 日志配置结构体

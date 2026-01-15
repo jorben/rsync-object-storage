@@ -6,7 +6,19 @@ import (
 )
 
 var once sync.Once
+
+// globalKV 是热点文件缓存的全局单例实例
+// 设计说明：采用单例模式简化热点文件检测，用于判断文件是否为频繁修改的热点文件
+//
+// 测试时Mock方法：
+// 1. 使用 ResetForTest() 重置全局实例
+// 2. 在测试中直接操作全局函数 Set/Get/Exists/Delete
+// 3. 如需完全隔离，可在测试前调用 ResetForTest()，测试后再调用一次清理
 var globalKV *KV
+
+// stopChan 用于停止清理协程
+var stopChan chan struct{}
+var stopOnce sync.Once
 
 // Item 集合中的元素，包含值和过期时间
 type Item struct {
@@ -28,7 +40,8 @@ func newKV() *KV {
 }
 
 func init() {
-	go GetKV().clean(5 * time.Second)
+	stopChan = make(chan struct{})
+	go GetKV().clean(5*time.Second, stopChan)
 }
 
 // GetKV 获取KV实例
@@ -37,6 +50,22 @@ func GetKV() *KV {
 		globalKV = newKV()
 	})
 	return globalKV
+}
+
+// Stop 停止KV清理协程，用于优雅退出
+func Stop() {
+	stopOnce.Do(func() {
+		close(stopChan)
+	})
+}
+
+// ResetForTest 重置全局实例，仅用于测试
+// 注意：此方法仅应在测试中使用，生产环境中不应调用
+func ResetForTest() {
+	once = sync.Once{}
+	stopOnce = sync.Once{}
+	globalKV = nil
+	stopChan = make(chan struct{})
 }
 
 // Set 往集合中添加元素
@@ -95,7 +124,6 @@ func (s *KV) delete(key interface{}) {
 		return
 	}
 	delete(s.items, key)
-	return
 }
 
 // contains 检查一个元素是否存在于集合中，并且未过期
@@ -118,12 +146,15 @@ func (s *KV) contains(key interface{}) bool {
 }
 
 // clean 是一个后台协程，定期清理过期的元素
-func (s *KV) clean(interval time.Duration) {
+// 支持通过stopCh通道停止，实现优雅退出
+func (s *KV) clean(interval time.Duration, stopCh <-chan struct{}) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-stopCh:
+			return
 		case <-ticker.C:
 			s.mu.Lock()
 			now := time.Now()
