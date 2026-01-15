@@ -77,7 +77,7 @@ func (c *SyncConfig) GetString() string {
 	s += fmt.Sprintf("    Start-at:\t| %s\n", c.Sync.CheckJob.StartAt)
 	s += fmt.Sprintf("  Symlink:\t| %s\n", c.Sync.Symlink)
 	s += fmt.Sprintf("  Ignore:\t| %v\n", c.Sync.Ignore)
-	s += fmt.Sprint("******************************************")
+	s += "******************************************"
 	return s
 }
 

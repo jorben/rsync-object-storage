@@ -109,6 +109,11 @@ func InitLogger(opc []OutputConfig) {
 
 }
 
+// InitNopLogger 初始化空日志器，用于测试
+func InitNopLogger() {
+	logger = zap.NewNop().Sugar()
+}
+
 // Wrapper 代理logger，使得With与Debug等日志调用栈层数一致
 type Wrapper struct {
 	l *zap.SugaredLogger

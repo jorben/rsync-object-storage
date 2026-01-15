@@ -16,7 +16,7 @@ import (
 )
 
 type Storage struct {
-	Minio        *minio.Client
+	Client       ObjectStorageClient
 	Bucket       string
 	LocalPrefix  string
 	RemotePrefix string
@@ -37,7 +37,7 @@ func NewStorage(c *config.SyncConfig) (*Storage, error) {
 	}
 
 	return &Storage{
-		Minio:        cli,
+		Client:       cli,
 		Bucket:       c.Remote.Bucket,
 		LocalPrefix:  c.Local.Path,
 		RemotePrefix: c.Remote.Path,
@@ -48,7 +48,7 @@ func NewStorage(c *config.SyncConfig) (*Storage, error) {
 // ListBucket 列出Bucket列表
 func (s *Storage) ListBucket(ctx context.Context) ([]string, error) {
 	var bucketList []string
-	bucketInfoList, err := s.Minio.ListBuckets(ctx)
+	bucketInfoList, err := s.Client.ListBuckets(ctx)
 	if err != nil {
 		return bucketList, err
 	}
@@ -60,7 +60,7 @@ func (s *Storage) ListBucket(ctx context.Context) ([]string, error) {
 
 // BucketExists 判断Bucket是否存在
 func (s *Storage) BucketExists(ctx context.Context) error {
-	exist, err := s.Minio.BucketExists(ctx, s.Bucket)
+	exist, err := s.Client.BucketExists(ctx, s.Bucket)
 	if err != nil {
 		return err
 	}
@@ -73,14 +73,14 @@ func (s *Storage) BucketExists(ctx context.Context) error {
 // RemoveObject 删除对象
 func (s *Storage) RemoveObject(ctx context.Context, objectName string) error {
 	objectName = s.GetRemotePath(objectName)
-	_, err := s.Minio.StatObject(ctx, s.Bucket, objectName, minio.StatObjectOptions{})
+	_, err := s.Client.StatObject(ctx, s.Bucket, objectName, minio.StatObjectOptions{})
 	if err != nil {
 		// 多半是Key不存在
 		log.Debugf("StatObject err: %s, path: %s", err.Error(), objectName)
 		return nil
 	}
 
-	return s.Minio.RemoveObject(ctx, s.Bucket, objectName, minio.RemoveObjectOptions{})
+	return s.Client.RemoveObject(ctx, s.Bucket, objectName, minio.RemoveObjectOptions{})
 
 }
 
@@ -90,7 +90,7 @@ func (s *Storage) RemoveObjects(ctx context.Context, objectPath string) (someErr
 	objectPath = s.GetRemotePath(objectPath)
 	go func() {
 		defer close(ch)
-		for object := range s.Minio.ListObjects(ctx, s.Bucket,
+		for object := range s.Client.ListObjects(ctx, s.Bucket,
 			minio.ListObjectsOptions{Prefix: objectPath, Recursive: true}) {
 			if object.Err != nil {
 				log.Errorf("ListObjects err: %s", object.Err.Error())
@@ -107,7 +107,7 @@ func (s *Storage) RemoveObjects(ctx context.Context, objectPath string) (someErr
 
 	someError = nil
 	opts := minio.RemoveObjectsOptions{GovernanceBypass: true}
-	for err := range s.Minio.RemoveObjects(ctx, s.Bucket, ch, opts) {
+	for err := range s.Client.RemoveObjects(ctx, s.Bucket, ch, opts) {
 		someError = err.Err
 		log.Errorf("RemoveObjects err: %s, path: %s", err.Err.Error(), err.ObjectName)
 	}
@@ -197,7 +197,7 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 		}
 	}
 
-	if _, err := s.Minio.FPutObject(ctx, s.Bucket, objectName, tmp, minio.PutObjectOptions{}); err != nil {
+	if _, err := s.Client.FPutObject(ctx, s.Bucket, objectName, tmp, minio.PutObjectOptions{}); err != nil {
 		return err
 	}
 	return nil
@@ -255,7 +255,7 @@ func (s *Storage) IsSameV2(ctx context.Context, localPath, remotePath string) bo
 		}
 	}
 
-	objectInfo, err := s.Minio.StatObject(ctx, s.Bucket, remotePath, minio.StatObjectOptions{})
+	objectInfo, err := s.Client.StatObject(ctx, s.Bucket, remotePath, minio.StatObjectOptions{})
 	if err != nil {
 		// 多半是Key不存在
 		log.Debugf("StatObject %s, path: %s", err.Error(), remotePath)
