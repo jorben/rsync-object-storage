@@ -38,8 +38,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	PutChan := make(chan string, 64)
-	DeleteChan := make(chan string, 16)
+	// Channel 缓冲大小优化：根据 Worker 数量调整，避免生产者阻塞
+	// PutChan: 8 Workers * 32 = 256，足够处理批量文件变更
+	// DeleteChan: 删除操作较少但可能批量，设置为 64
+	PutChan := make(chan string, 256)
+	DeleteChan := make(chan string, 64)
 
 	// 检查本地路径可读性
 	if _, err = os.ReadDir(c.Local.Path); err != nil {

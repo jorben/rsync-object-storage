@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -14,14 +15,21 @@ import (
 	"time"
 )
 
+// delayItem 热点延迟项，记录首次触发时间
+type delayItem struct {
+	firstSeen time.Time
+}
+
 type Watcher struct {
-	Enable      bool
-	Ignore      []string
-	HotDelay    time.Duration
-	LocalPrefix string
-	Notify      *fsnotify.Watcher
-	PutChan     chan string
-	DeleteChan  chan string
+	Enable        bool
+	Ignore        []string
+	IgnoreMatcher *helper.IgnoreMatcher // 预编译的忽略规则匹配器
+	HotDelay      time.Duration
+	LocalPrefix   string
+	Notify        *fsnotify.Watcher
+	PutChan       chan string
+	DeleteChan    chan string
+	watchListMap  sync.Map // 监听列表 Map，用于 O(1) 查找
 }
 
 func NewWatcher(c *config.SyncConfig, putCh chan string, deleteCh chan string) (*Watcher, error) {
@@ -32,13 +40,14 @@ func NewWatcher(c *config.SyncConfig, putCh chan string, deleteCh chan string) (
 	}
 
 	return &Watcher{
-		Enable:      c.Sync.RealTime.Enable,
-		HotDelay:    time.Duration(c.Sync.RealTime.HotDelay) * time.Minute,
-		Notify:      notify,
-		PutChan:     putCh,
-		DeleteChan:  deleteCh,
-		LocalPrefix: c.Local.Path,
-		Ignore:      c.Sync.Ignore,
+		Enable:        c.Sync.RealTime.Enable,
+		HotDelay:      time.Duration(c.Sync.RealTime.HotDelay) * time.Minute,
+		Notify:        notify,
+		PutChan:       putCh,
+		DeleteChan:    deleteCh,
+		LocalPrefix:   c.Local.Path,
+		Ignore:        c.Sync.Ignore,
+		IgnoreMatcher: helper.NewIgnoreMatcher(c.Sync.Ignore),
 	}, nil
 }
 
@@ -50,12 +59,14 @@ func (w *Watcher) Add(path string) error {
 			log.Errorf("WalkDir err: %s, skipping %s", err.Error(), subPath)
 			return filepath.SkipDir
 		}
-		// 是文件夹且不在忽略列表中
-		if d.IsDir() && !helper.IsIgnore(subPath, w.Ignore) {
+		// 是文件夹且不在忽略列表中（使用预编译的 IgnoreMatcher）
+		if d.IsDir() && !w.IgnoreMatcher.Match(subPath) {
 			if err := w.Notify.Add(subPath); err != nil {
 				log.Errorf("Watch add err: %s, skipping %s", err.Error(), subPath)
 				return filepath.SkipDir
 			}
+			// 同步更新 watchListMap，用于 O(1) 查找
+			w.watchListMap.Store(subPath, struct{}{})
 			log.Debugf("Watch add %s", subPath)
 		}
 		return nil
@@ -84,10 +95,11 @@ func (w *Watcher) Watch(ctx context.Context) error {
 		return err
 	}
 
-	// 热点延迟集合，使用sync.Map减少锁争用
+	// 热点延迟集合，使用sync.Map存储 path -> delayItem{firstSeen}
 	var delayKeys sync.Map
 
-	ticker := time.NewTicker(w.HotDelay)
+	// 使用更短的检查间隔（1秒），实现精确的延迟控制
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -99,7 +111,8 @@ func (w *Watcher) Watch(ctx context.Context) error {
 			if !ok || event.Has(fsnotify.Chmod) {
 				continue
 			}
-			if match := helper.IsIgnore(event.Name, w.Ignore); match {
+			// 使用预编译的 IgnoreMatcher 进行快速匹配
+			if w.IgnoreMatcher.Match(event.Name) {
 				log.Debugf("Ignore %s", event.Name)
 				continue
 			}
@@ -115,9 +128,10 @@ func (w *Watcher) Watch(ctx context.Context) error {
 			if event.Has(fsnotify.Write) {
 				// 判断文件是否热点文件，热点文件进行延迟更新，以节省流量和操作次数
 				if kv.Exists(event.Name) {
-					// 使用sync.Map存储，无锁争用
-					log.Debugf("Hot path, will be delay sync %s", event.Name)
-					delayKeys.Store(event.Name, struct{}{})
+					// 记录首次触发时间戳，实现精确延迟控制
+					if _, loaded := delayKeys.LoadOrStore(event.Name, delayItem{firstSeen: time.Now()}); !loaded {
+						log.Debugf("Hot path, will be delay sync %s", event.Name)
+					}
 				} else {
 					w.PutChan <- event.Name
 				}
@@ -126,27 +140,34 @@ func (w *Watcher) Watch(ctx context.Context) error {
 			// 如果删除或改在监听列表中，则需要移除监听
 			// 实验证明Remove的时候fsnotify会自动处理移除监听（包括子目录），而Rename的时候只会移除被rename的目录（不包括子目录）
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-				// 这里fsnotify使用数组来存储了监听列表，遍历查找在监听范围很大的时候效率低，未来可以优化成map来存储
-				for _, name := range w.Notify.WatchList() {
+				// 使用 watchListMap 进行 O(1) 查找，替代原有的数组遍历
+				w.watchListMap.Range(func(key, _ interface{}) bool {
+					name := key.(string)
 					// 如果是曾经监听的对象，则移除对该目录及子目录的监听
-					//log.Debugf("DEBUG e.Name: %s vs name in list: %s", event.Name, name)
-					if event.Name == name || (len(name) > len(event.Name) && event.Name+"/" == name[0:len(event.Name)+1]) {
+					if event.Name == name || (len(name) > len(event.Name) && strings.HasPrefix(name, event.Name+"/")) {
 						if err := w.Notify.Remove(name); err != nil {
 							log.Errorf("Watch remove err: %s", err.Error())
 						}
+						w.watchListMap.Delete(name)
 						log.Debugf("Watch remove %s", name)
 					}
-				}
+					return true
+				})
 				w.DeleteChan <- event.Name
 			}
 
 		case <-ticker.C:
-			// 处理降温后的热点数据key，使用sync.Map的Range方法
-			delayKeys.Range(func(key, _ interface{}) bool {
+			// 处理降温后的热点数据key，检查每个文件的实际延迟时间
+			now := time.Now()
+			delayKeys.Range(func(key, value interface{}) bool {
 				path := key.(string)
-				log.Debugf("Get delayed path %s", path)
-				w.PutChan <- path
-				delayKeys.Delete(key)
+				item := value.(delayItem)
+				// 只有当实际延迟时间达到 HotDelay 时才触发同步
+				if now.Sub(item.firstSeen) >= w.HotDelay {
+					log.Debugf("Get delayed path %s (delayed %v)", path, now.Sub(item.firstSeen))
+					w.PutChan <- path
+					delayKeys.Delete(key)
+				}
 				return true
 			})
 

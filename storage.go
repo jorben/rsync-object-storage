@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/jorben/rsync-object-storage/config"
 	"github.com/jorben/rsync-object-storage/enum"
@@ -66,7 +65,7 @@ func (s *Storage) BucketExists(ctx context.Context) error {
 		return err
 	}
 	if !exist {
-		return errors.New(fmt.Sprintf("bucket %s is not exist", s.Bucket))
+		return fmt.Errorf("bucket %s is not exist", s.Bucket)
 	}
 	return nil
 }
@@ -172,7 +171,7 @@ func (s *Storage) FPutObject(ctx context.Context, localPath string) error {
 			// 创建空文件
 			emptyFile, err := os.Create(localPath)
 			if err != nil {
-				return errors.New(fmt.Sprintf("Create .keep file err: %s", err.Error()))
+				return fmt.Errorf("Create .keep file err: %s", err.Error())
 			}
 			_ = emptyFile.Close()
 		}
@@ -221,7 +220,7 @@ func (s *Storage) IsSameV2(ctx context.Context, localPath, remotePath string) bo
 		case enum.SymlinkFile:
 			if isDir, _ := helper.IsDir(localPath); !isDir {
 				log.Debugf("SymlinkFile %s", localPath)
-				localMd5, err = helper.FileMd5(localPath)
+				localMd5, err = helper.GetCachedFileMd5(localPath)
 				if err != nil {
 					log.Errorf("MD5 error: %s", err.Error())
 					return false
@@ -279,12 +278,12 @@ func (s *Storage) IsSameV2(ctx context.Context, localPath, remotePath string) bo
 		return true
 	}
 
-	// 计算本地文件的md5
+	// 计算本地文件的md5（使用缓存避免重复计算）
 	if localMd5 == "" {
-		localMd5, _ = helper.FileMd5(localPath)
+		localMd5, _ = helper.GetCachedFileMd5(localPath)
 	}
 	log.Debugf("Compare %s, Local Md5: %s, Remote ETag: %s", localPath, localMd5, objectInfo.ETag)
-	if strings.ToLower(localMd5) == strings.ToLower(objectInfo.ETag) {
+	if strings.EqualFold(localMd5, objectInfo.ETag) {
 		return true
 	}
 	return false
