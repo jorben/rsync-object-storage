@@ -1,64 +1,72 @@
 <div align="center">
 <h1>Rsync Object Storage</h1>
-  
+
+[中文版](README_zh.md)
+
 [![Build]][build_url]
 [![Version]][tag_url]
 [![Size]][hub_url]
 [![Pulls]][hub_url]
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](http://copyfree.org)
-<p>一个同步工具，可以监听本地文件变更，实时同步到远端（s3）对象存储</p>
+<p>A synchronization tool that monitors local file changes and syncs them to remote (S3) object storage in real-time.</p>
 
 ![rsync-object-storage](https://socialify.git.ci/jorben/rsync-object-storage/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Light)
 </div>
 
-### 功能点
+### Features
 
-- 实时同步
-  - 支持监听本地路径下（含所有子目录）文件变更事件，实时发起同步本地变更到远端对象存储
-  - 本地的删除操作也会同步删除远端对应文件（若不想删除远端建议通过启用对象存储的版本控制来实现）
-  - 支持热点文件降温，配置时间内反复触发变更的文件，降低同步频率，（配置文件中`sync.real_time.hot_delay`配置项）
-- 定时同步
-  - 支持比对本地路径下全部文件与远端对应文件的差异，对存在差异的文件进行同步（只针对本地存在的文件操作同步，本地不存在但远端存在的文件不会被删除）
-  - 支持指定首次任务启动时间点（配置文件中`sync.check_job.start_at`配置项），便于指定在非繁忙时点开始定期同步
-  - 支持指定任务执行频率（配置文件中`sync.check_job.interval`配置项），将按周期在start_at时点启动
-- 支持单独启用实时或定时同步（配置文件中`sync.real_time.enable`和`sycn.check_job.enable`配置项）
-- 支持忽略，可按文件名/目录名称匹配，支持名称中含*通配（配置文件中`sync.ignore`配置项）
+- **Real-time Synchronization**
+  - Monitors local file changes (including all subdirectories) and triggers real-time synchronization to remote object storage.
+  - Deletions on the local filesystem are also synced to the remote storage (if you want to keep remote files, consider enabling versioning on your object storage bucket).
+  - Supports hot file cooling: Files that trigger changes frequently within a configured window will only be synced once after the delay (configured via `sync.real_time.hot_delay`).
+- **Scheduled Synchronization (Check Job)**
+  - Compares all local files with their remote counterparts and syncs any differences (only syncs local files to remote; files that exist remotely but not locally will not be deleted).
+  - Supports configurable task start time (`sync.check_job.start_at`), useful for scheduling full syncs during off-peak hours.
+  - Supports configurable execution frequency (`sync.check_job.interval`), running periodically from the `start_at` time.
+- **Flexible Modes**: Enable real-time sync, scheduled sync, or both independently.
+- **Ignore Rules**: Support for ignoring files/directories based on name patterns, including `*` wildcards.
 
-### 使用方法
-#### Docker compose
-- config.yaml 示例
+### Usage
+
+#### Docker Compose
+
+- **config.yaml** Example:
+
 ```yaml
-# 本地路径配置
+# Local path configuration
 local:
-  path: /data # 本地需要同步的路径，容器中则为所需同步的路径映射容器中的路径
+  path: /data # Local path to sync. In a container, this is the mapped path.
 
-# 远端对象存储配置
+# Remote object storage configuration
 remote:
-  endpoint: cos.ap-guangzhou.myqcloud.com # 例如：cos.ap-guangzhou.myqcloud.com
+  endpoint: cos.ap-guangzhou.myqcloud.com # e.g., cos.ap-guangzhou.myqcloud.com
   use_ssl: true
-  secret_id: ${MY_SECRET_ID} # 可设置在环境变量中
-  secret_key: ${MY_SECRET_KEY} # 可设置在环境变量中
-  bucket: somebucket # 这里配置你的存储桶名称
-  region: ap-guangzhou # 这里配置存储桶所在区域代码，无区域可留空
-  path: / # 这里配置远端路径，桶根路径可配置为/
+  secret_id: ${MY_SECRET_ID} # Can be set in environment variables
+  secret_key: ${MY_SECRET_KEY} # Can be set in environment variables
+  bucket: somebucket # Your bucket name
+  region: ap-guangzhou # Your bucket region code (leave empty if not applicable)
+  path: / # Remote path, use / for bucket root
 
-# 同步配置
+# Sync configuration
 sync:
-  # 是否启用实时同步（监听本地文件变更进行同步，仅同步服务运行期间发生变更的文件，可结合check_job实现全量同步）
+  # Real-time sync configuration
   real_time:
     enable: true 
-    hot_delay: 5 # 在该时间内反复触发变更的热点文件将在该配置的时间内仅最后做1次同步动作，单位分钟（可有效减少反复变更带来的流量消耗）
-  # 是否启用定期文件对账（扫描对比本地与远端文件差异进行同步）
+    hot_delay: 5 # Time in minutes to delay sync for frequently changed files (reduces API calls/bandwidth)
+  
+  # Scheduled check job configuration
   check_job:
-    enable: true  # 是否启用定时全量检查和同步（检查存在差异时会触发差异文件的同步）
-    interval: 24 # 文件对账频率间隔，单位小时
-    start_at: 3:00:00 # 文件对账启动时间（建议选在凌晨），将结合频率间隔配置定期执行
-  # symlink 由于对象存储不支持符号链接，所以需要选择对符号链接文件的处理策略，可选(skip|addr|file)，默认为skip
-  # - skip 跳过符号链接文件，相当于忽略掉符号链接文件
-  # - addr 把链接指向的地址保存到对象存储，用于记录链接的目标
-  # - file 复制链接指向的实体文件到对象存储（为避免循环引用，符号链接指向文件夹时则会采用addr策略）
+    enable: true  # Enable periodic full scanning and sync
+    interval: 24 # Frequency in hours
+    start_at: 3:00:00 # Scheduled start time (recommended during low traffic)
+  
+  # Symlink handling strategy (skip|addr|file), default is skip
+  # - skip: Ignore symbolic links
+  # - addr: Save the link target address as a file in object storage
+  # - file: Copy the actual file the link points to (uses addr for directories to avoid recursion)
   symlink: addr
-  # 忽略不同步的文件和文件夹
+  
+  # Files and directories to ignore
   ignore:
     - .*.swp
     - "*~"
@@ -68,6 +76,7 @@ sync:
     - .git
     - Thumbs.db
     - .idea
+
 log:
   - writer: console
     formatter: console
@@ -83,7 +92,9 @@ log:
       max_age: 30
       compress: true
 ```
-- docker-compose.yml 示例
+
+- **docker-compose.yml** Example:
+
 ```yaml
 version: "3.8"
 
@@ -93,30 +104,30 @@ services:
     image: jorbenzhu/rsync-object-storage:latest
     command: ["/app/ros", "-c", "/app/config.yaml"]
     environment:
-      MY_SECRET_ID: #在这里配置你的对象存储SECRET_ID
-      MY_SECRET_KEY: #在这里配置你的对象存储SECRET_KEY
+      MY_SECRET_ID: # Your SECRET_ID
+      MY_SECRET_KEY: # Your SECRET_KEY
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - /data/ros/config.yaml:/app/config.yaml:ro #这里替换你的本地配置文件路径，映射为容器的/app/config.yaml路径
-      - /data/sync_dir:/data:ro #这里替换你需要同步的本地路径，映射为容器的/data路径
+      - /data/ros/config.yaml:/app/config.yaml:ro # Your local config path
+      - /data/sync_dir:/data:ro # The local directory you want to sync
     restart: always
 ```
 
-### 注意事项
+### Troubleshooting
 
-**遇到"too many open files"或"no space left on device"错误**
+**"too many open files" or "no space left on device" errors**
 
-原因可能是需要监听的目录数量超出了系统的配置数量，调整到合理数值可解决（docker容器环境需要调整宿主机的配置）
+This usually happens when the number of monitored directories exceeds the system limit. Adjusting the following settings can resolve this (for Docker, adjust these on the host machine):
 
-- Linux: /proc/sys/fs/inotify/max_user_watches contains the limit, reaching this limit results in a “no space left on device” error.
-- BSD / OSX: sysctl variables “kern.maxfiles” and “kern.maxfilesperproc”, reaching these limits results in a “too many open files” error.
+- **Linux**: `/proc/sys/fs/inotify/max_user_watches`
+- **BSD / OSX**: `kern.maxfiles` and `kern.maxfilesperproc`
+
 ```shell
-# Linux：
-# 调整系统配置，数值可以依据自身情况调整
+# Linux:
+# Increase the limit (adjust value as needed)
 sudo sysctl fs.inotify.max_user_watches=102400 | sudo tee -a /etc/sysctl.conf
-# 查询是否生效
+# Verify the change
 cat /proc/sys/fs/inotify/max_user_watches
-
 ```
 
 [build_url]: https://github.com/jorben/rsync-object-storage/
